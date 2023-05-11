@@ -176,6 +176,7 @@ type BgpServer struct {
 	roaTable     *table.ROATable
 	uuidMap      map[string]uuid.UUID
 	logger       log.Logger
+	rpkiManager	 *rpkiManager
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -187,7 +188,8 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	if logger == nil {
 		logger = log.NewDefaultLogger()
 	}
-	roaTable := table.NewROATable(logger)
+		roaTable := table.NewROATable(logger)
+		rpkiManager, _ := NewRPKIManager(0)
 
 	s := &BgpServer{
 		neighborMap:  make(map[string]*peer),
@@ -199,6 +201,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaManager:   newROAManager(roaTable, logger),
 		roaTable:     roaTable,
 		logger:       logger,
+		rpkiManager:  rpkiManager,
 	}
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
@@ -1645,6 +1648,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
+			s.rpkiManager.validate(e, true, false)
 			pathList, eor, notification := peer.handleUpdate(e)
 			if notification != nil {
 				sendfsmOutgoingMsg(peer, nil, notification, true)
@@ -2265,6 +2269,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
+		s.rpkiManager.SetAS(s.bgpConfig.Global.Config.As)
 		return nil
 	}, false)
 }
