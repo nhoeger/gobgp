@@ -298,6 +298,7 @@ func NewRPKIManager(as uint32) (*rpkiManager, error) {
 		AS:      int(as),
 		ID:      0,
 		Updates: make([]srx_update, 0),
+		Proxy:	 go_proxy
 	}
 	return rm, nil
 }
