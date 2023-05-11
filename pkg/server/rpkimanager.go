@@ -139,17 +139,18 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	// Preparing the defaultResult
 	defaultResult := (*C.SRxDefaultResult)(C.malloc(C.sizeof_SRxDefaultResult))
 	defer C.free(unsafe.Pointer(defaultResult))
-	
-	Res := (*C.SRxResultSource)(C.malloc(C.sizeof_SRxResultSource))
+
 	var Res C.SRxResultSource = 3
-	var test C.SRxResult
+	test := (*C.SRxResult)(C.malloc(C.sizeof_SRxDefaultResult))
+	defer C.free(unsafe.Pointer(test))
+	//var test C.SRxResult
 	test.roaResult = 0
 	test.bgpsecResult = 0
 	test.aspaResult = 0
 	defaultResult.resSourceROA = Res
 	defaultResult.resSourceBGPSEC = Res
 	defaultResult.resSourceASPA = Res
-	defaultResult.result = test
+	defaultResult.result = *test
 
 	// Preparing the Prefix
 	px := &IPAddress{
@@ -158,6 +159,7 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	}
 
 	prefix := (*C.IPPrefix)(C.malloc(C.sizeof_IPPrefix))
+	defer C.free(unsafe.Pointer(prefix))
 
 	pxip := prefix_addr
 	copy(px.V4[:], pxip)
@@ -191,7 +193,9 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	}*/
 
 	as_int, _ := strconv.Atoi(e.PathList[0].GetAsString())
-	var asPathList C.SRxASPathList
+	asPathList := (*C.SRxASPathList)(C.malloc(C.sizeof_SRxASPathList))
+	defer C.free(unsafe.Pointer(asPathList))
+	//var asPathList C.SRxASPathList
 	working_path := e.PathList
 	var testing_1 C.ASSEGMENT
 	testing_1.asn = C.uint(as_int)
@@ -243,6 +247,7 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 
 	// Preparing BGPSec data
 	go_bgpsec := (*C.BGPSecData)(C.malloc(C.sizeof_BGPSecData))
+	defer C.free(unsafe.Pointer(go_bgpsec))
 	var number1 C.uchar = 1
 	var number2 C.uint = 1
 	go_bgpsec.numberHops = 1
@@ -270,7 +275,7 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	log.Info(asPathList.segments)
 
 	if aspa {
-		C.verifyUpdate(go_proxy, C.uint(rm.ID), false, false, true, defaultResult, prefix, C.uint(as_int), go_bgpsec, asPathList)
+		C.verifyUpdate(&rm.Proxy, C.uint(rm.ID), false, false, true, defaultResult, prefix, C.uint(as_int), go_bgpsec, *asPathList)
 	}
 
 	/*if ascones {
@@ -280,9 +285,6 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	update_test := NewSrxUpdate(rm.ID)
 	rm.ID++
 	rm.Updates = append(rm.Updates, update_test)
-	C.free(unsafe.Pointer(defaultResult))
-	C.free(unsafe.Pointer(prefix))
-	C.free(unsafe.Pointer(go_bgpsec))
 	//C.free(unsafe.Pointer(go_proxy))
 	log.Info("+---------------------------------------+")
 }
@@ -290,12 +292,11 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 func NewRPKIManager(as uint32) (*rpkiManager, error) {
 	go_proxy := (*C.SRxProxy)(C.malloc(C.sizeof_SRxProxy))
 	go_proxy = C.createSRxProxy(C.closure(C.Go_ValidationReady), C.closure(C.Go_SignaturesReady), C.closure(C.Go_SyncNotification), C.closure(C.Go_SrxCommManagement), 5, C.uint(65001), nil)
-	C.connectToSRx(go_proxy, srx_server_ip, srx_server_port, handshakeTimeout, true)
 	rm := &rpkiManager{
 		AS:      int(as),
 		ID:      0,
 		Updates: make([]srx_update, 0),
-		Proxy:	 *go_proxy,
+		Proxy:   *go_proxy,
 	}
 	return rm, nil
 }
