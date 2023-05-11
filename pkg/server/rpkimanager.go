@@ -104,6 +104,12 @@ func (rm *rpkiManager) SetAS(as uint32) error {
 }
 
 func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
+	go_proxy := (*C.SRxProxy)(C.malloc(C.sizeof_SRxProxy))
+	go_proxy = C.createSRxProxy(C.closure(C.Go_ValidationReady), C.closure(C.Go_SignaturesReady), C.closure(C.Go_SyncNotification), C.closure(C.Go_SrxCommManagement), 5, C.uint(65001), nil)
+	srx_server_ip := C.CString("172.17.0.3")
+	srx_server_port := C.int(17900)
+	handshakeTimeout := C.int(100)
+	C.connectToSRx(go_proxy, srx_server_ip, srx_server_port, handshakeTimeout, true)
 	// start validation
 	log.Info("+---------------------------------------+")
 	log.WithFields(log.Fields{
@@ -264,7 +270,7 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	log.Info(asPathList.segments)
 
 	if aspa {
-		C.verifyUpdate(&rm.Proxy, C.uint(rm.ID), false, false, true, defaultResult, prefix, C.uint(as_int), go_bgpsec, asPathList)
+		C.verifyUpdate(go_proxy, C.uint(rm.ID), false, false, true, defaultResult, prefix, C.uint(as_int), go_bgpsec, asPathList)
 	}
 
 	/*if ascones {
@@ -277,6 +283,7 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 	C.free(unsafe.Pointer(defaultResult))
 	C.free(unsafe.Pointer(prefix))
 	C.free(unsafe.Pointer(go_bgpsec))
+	//C.free(unsafe.Pointer(go_proxy))
 	log.Info("+---------------------------------------+")
 }
 
@@ -289,7 +296,6 @@ func NewRPKIManager(as uint32) (*rpkiManager, error) {
 	C.connectToSRx(go_proxy, srx_server_ip, srx_server_port, handshakeTimeout, true)
 	rm := &rpkiManager{
 		AS:      int(as),
-		Proxy:   *go_proxy,
 		ID:      0,
 		Updates: make([]srx_update, 0),
 	}
