@@ -138,7 +138,9 @@ func (rm *rpkiManager) validate(e *fsmMsg, aspa bool, ascones bool) {
 
 	// Preparing the defaultResult
 	defaultResult := (*C.SRxDefaultResult)(C.malloc(C.sizeof_SRxDefaultResult))
-
+	defer C.free(unsafe.Pointer(defaultResult))
+	
+	Res := (*C.SRxResultSource)(C.malloc(C.sizeof_SRxResultSource))
 	var Res C.SRxResultSource = 3
 	var test C.SRxResult
 	test.roaResult = 0
