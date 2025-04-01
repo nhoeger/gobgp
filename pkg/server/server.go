@@ -211,6 +211,8 @@ type BgpServer struct {
 	uuidMap      map[string]uuid.UUID
 	logger       log.Logger
 	timingHook   FSMTimingHook
+	rpkiManager   *RPKIManager
+	updateManager *updateManager
 }
 
 func NewBgpServer(opt ...ServerOption) *BgpServer {
@@ -225,7 +227,8 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		logger = log.NewDefaultLogger()
 	}
 	roaTable := table.NewROATable(logger)
-
+	rpkiManager, _ := NewRPKIManager(0)
+	updateManager := createUpdateManager()
 	s := &BgpServer{
 		neighborMap:  make(map[string]*peer),
 		peerGroupMap: make(map[string]*peerGroup),
@@ -237,9 +240,12 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 		roaTable:     roaTable,
 		logger:       logger,
 		timingHook:   opts.timingHook,
+		updateManager: &updateManager,
 	}
+
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
+	s.rpkiManager, _ = NewRPKIManager(s)
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -1820,6 +1826,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
+			s.rpkiManager.validate(e, true, false)
 			pathList, eor, notification := peer.handleUpdate(e)
 			if notification != nil {
 				sendfsmOutgoingMsg(peer, nil, notification, true)
