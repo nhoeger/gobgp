@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"strconv"
 	"sync"
 	"time"
 
@@ -38,26 +37,37 @@ func validate_call(proxy *GoSRxProxy, input string) {
 // Sends Hello message to SRx-Server
 // ASN becomes the identifier of the proxy
 func sendHello(proxy GoSRxProxy) {
+	// Convert the ASN to a hex value
+	converted_asn := fmt.Sprintf("%08x", int64(proxy.ASN))
+
+	// Prepare the hello message
 	hm := HelloMessage{
 		PDU:              HelloPDU,
 		Version:          "0003",
 		reserved:         "00",
 		zero:             "00000000",
-		length:           "00000014",
+		length:           "00000000",
 		proxy_identifier: "00000001",
-		ASN:              "0000" + strconv.FormatInt(int64(proxy.ASN), 16),
+		ASN:              converted_asn,
 	}
+
+	// Get the length in bytes
+	length := len(hm.PDU) + len(hm.Version) + len(hm.reserved) + len(hm.zero) + len(hm.length) + len(hm.proxy_identifier) + len(hm.ASN)
+	length = length / 2
+	hm.length = fmt.Sprintf("%08x", length)
+
+	// Convert HelloMessage to hex and send it
 	hexString := structToString(hm)
-	log.Info(hexString)
 	bytes, _ := hex.DecodeString(hexString)
 	_, err := proxy.con.Write(bytes)
 	if err != nil {
-		log.Fatal("Sending Hello Failed: ", err)
+		log.Fatal("[!] Sending Hello Failed: ", err)
 	}
 }
 
 // New Proxy instance
 func createSRxProxy(AS int, ip string, VNC func(*VerifyNotify), SC func()) GoSRxProxy {
+	log.Info("[i] Creating Proxy")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	pr := GoSRxProxy{
@@ -87,10 +97,10 @@ func (proxy *GoSRxProxy) connectToSrxServer(ip string) {
 		connectionCounter += 1
 		conn, err = net.Dial("tcp", server)
 		if err != nil {
-			log.Debug("Connection to Server failed! Trying to connect...")
+			log.Debug("[!] Connection to Server failed! Trying to connect...")
 			time.Sleep(2 * time.Second)
 		} else {
-			log.Debug("TCP Connection Established")
+			log.Info("[i] Connection to SRx-Server established")
 			proxy.con = conn
 			proxy.conStatus = true
 			break

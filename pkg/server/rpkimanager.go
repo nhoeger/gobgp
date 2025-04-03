@@ -391,6 +391,7 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 // NewRPKIManager Create new RPKI manager instance
 // Input: pointer to BGPServer
 func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
+	s.logger.Info("[i] Creating new RPKI Manager", nil)
 	rm := &RPKIManager{
 		AS:             int(s.bgpConfig.Global.Config.As),
 		Server:         s,
@@ -402,6 +403,7 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 		Queue:          make([]*VerifyNotify, 0),
 	}
 	*rm.Ready = true
+	s.logger.Info("[i] RPKI Manager ready", nil)
 	return rm, nil
 }
 

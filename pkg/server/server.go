@@ -245,6 +245,7 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	s.rpkiManager, _ = NewRPKIManager(s)
+	// logger.Info("HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEELLO", log.Fields{})
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)
@@ -2506,6 +2507,9 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		// update route selection options
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
+
+		s.rpkiManager.SetAS(s.bgpConfig.Global.Config.As)
+		s.rpkiManager.SetSRxServer(s.bgpConfig.Global.Config.SRxServer)
 		return nil
 	}, false)
 }
