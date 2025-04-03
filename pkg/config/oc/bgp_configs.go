@@ -22,7 +22,6 @@ package oc
 
 import (
 	"fmt"
-
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
@@ -3207,6 +3206,11 @@ type NeighborConfig struct {
 	// original -> gobgp:send-software-version
 	// gobgp:send-software-version's original type is boolean.
 	SendSoftwareVersion bool `mapstructure:"send-software-version" json:"send-software-version,omitempty"`
+	// bgpsec enable added
+	BgpsecEnable bool   `mapstructure:"bgpsec-enable" json:"bgpsec-enable,omitempty"`
+	Ski          string `mapstructure:"SKI" json:"SKI,omitempty"`
+	ASPAEnable 	 bool 	`mapstructure:"aspa-enable" json:"aspa-enable,omitempty"`
+	ASConesEnable bool  `mapstructure:"ascones-enable" json:"ascones-enable,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {
@@ -4865,6 +4869,7 @@ type GlobalState struct {
 	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
 }
 
+
 // struct for container bgp:config.
 // Configuration parameters relating to the global BGP router.
 type GlobalConfig struct {
@@ -4882,6 +4887,11 @@ type GlobalConfig struct {
 	Port int32 `mapstructure:"port" json:"port,omitempty"`
 	// original -> gobgp:local-address
 	LocalAddressList []string `mapstructure:"local-address-list" json:"local-address-list,omitempty"`
+	SRxServer string `mapstructure:"SRxServer" json:"SRxServer,omitempty"`
+	ROA bool `mapstructure:"ROA" json:"ROA,omitempty"`
+	ASPA bool `mapstructure:"ASPA" json:"ASPA,omitempty"`
+	ASCONES bool `mapstructure:"ASCONES" json:"ASCONES,omitempty"`
+	KeyPath string `mapstructure:"key-path" json:"key-path,omitempty"`
 }
 
 func (lhs *GlobalConfig) Equal(rhs *GlobalConfig) bool {

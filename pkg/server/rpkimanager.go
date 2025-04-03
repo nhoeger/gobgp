@@ -2,16 +2,16 @@ package server
 
 import "C"
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
+	_ "os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	_ "os"
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -300,7 +300,7 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 	}
 }
 
-func (rm *RPKIManager) validateBGPsecMessage(e *fsmMsg) {
+/**func (rm *RPKIManager) validateBGPsecMessage(e *fsmMsg) {
 	log.Debug("Handling BGPsec message")
 	//bgpSecString := ""
 
@@ -386,7 +386,7 @@ func (rm *RPKIManager) validateBGPsecMessage(e *fsmMsg) {
 			}
 		}
 	}
-}
+}**/
 
 // NewRPKIManager Create new RPKI manager instance
 // Input: pointer to BGPServer

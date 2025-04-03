@@ -87,6 +87,8 @@ type originInfo struct {
 	source             *PeerInfo
 	timestamp          int64
 	noImplicitWithdraw bool
+	rpkiValidation     RpkiValidationReasonType
+	bgpsecValidation   RpkiValidationReasonType
 	isFromExternal     bool
 	eor                bool
 	stale              bool
@@ -367,6 +369,25 @@ func (path *Path) root() *Path {
 	}
 	return p
 }
+
+// New:
+func (path *Path) RpkiValidation() RpkiValidationReasonType {
+	return path.OriginInfo().rpkiValidation
+}
+
+func (path *Path) SetRpkiValidation(r RpkiValidationReasonType) {
+	path.OriginInfo().rpkiValidation = r
+}
+
+func (path *Path) BgpsecValidation() RpkiValidationReasonType {
+	return path.OriginInfo().bgpsecValidation
+}
+
+func (path *Path) SetBgpsecValidation(r RpkiValidationReasonType) {
+	path.OriginInfo().bgpsecValidation = r
+}
+
+// ----
 
 func (path *Path) OriginInfo() *originInfo {
 	return path.root().info

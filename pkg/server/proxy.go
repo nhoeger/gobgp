@@ -185,7 +185,7 @@ func (proxy *GoSRxProxy) verifyNotifyCallback(input string) {
 }
 
 func (proxy *GoSRxProxy) createV4Request(method SRxVerifyFlag, token int, defRes SRxDefaultResult, prefix IPPrefix, AS32 int, list ASPathList, data *BGPsecData) {
-	log.Debug("Creating V4 Request")
+	fmt.Println("Creating V4 Request")
 
 	request := VerifyMessage{
 		PDU:                  VerifyReqeustIPv4PDU,

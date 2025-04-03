@@ -3,7 +3,7 @@ package server
 import (
 	"time"
 
-	"github.com/osrg/gobgp/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 type srx_update struct {
