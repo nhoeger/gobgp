@@ -245,7 +245,6 @@ func NewBgpServer(opt ...ServerOption) *BgpServer {
 	s.bmpManager = newBmpClientManager(s)
 	s.mrtManager = newMrtManager(s)
 	s.rpkiManager, _ = NewRPKIManager(s)
-	// logger.Info("HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEELLO", log.Fields{})
 	if len(opts.grpcAddress) != 0 {
 		grpc.EnableTracing = false
 		s.apiServer = newAPIserver(s, grpc.NewServer(opts.grpcOption...), opts.grpcAddress)

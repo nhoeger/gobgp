@@ -6102,6 +6102,11 @@ type PeerConf struct {
 	AdminDown            bool                   `protobuf:"varint,15,opt,name=admin_down,json=adminDown,proto3" json:"admin_down,omitempty"`
 	SendSoftwareVersion  bool                   `protobuf:"varint,16,opt,name=send_software_version,json=sendSoftwareVersion,proto3" json:"send_software_version,omitempty"`
 	AllowAspathLoopLocal bool                   `protobuf:"varint,17,opt,name=allow_aspath_loop_local,json=allowAspathLoopLocal,proto3" json:"allow_aspath_loop_local,omitempty"`
+	Relationship         string                 `protobuf:"bytes,18,opt,name=relationship,json=relationship,proto3" json:"relationship,omitempty"`
+	ASPAEnable           bool                   `protobuf:"varint,19,opt,name=aspa-enable,json=aspa-enable,proto3" json:"aspa-enable,omitempty"`
+	ASConesEnable        bool                   `protobuf:"varint,20,opt,name=ascones-enable,json=ascones-enable,proto3" json:"ascones-enable,omitempty"`
+	BGPsecEnable         bool                   `protobuf:"varint,21,opt,name=bgpsec-enable,json=bgpsec-enable,proto3" json:"bgpsec-enable,omitempty"`
+	SKI            		 string                 `protobuf:"bytes,22,opt,name=SKI,json=SKI,proto3" json:"SKI,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }

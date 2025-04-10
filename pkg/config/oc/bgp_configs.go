@@ -3147,6 +3147,14 @@ type NeighborState struct {
 	Vrf string `mapstructure:"vrf" json:"vrf,omitempty"`
 	// original -> gobgp:remote-router-id
 	RemoteRouterId string `mapstructure:"remote-router-id" json:"remote-router-id,omitempty"`
+	// bgpsec enable added
+	BgpsecEnable bool   `mapstructure:"bgpsec-enable" json:"bgpsec-enable,omitempty"`
+	Ski          string `mapstructure:"SKI" json:"SKI,omitempty"`
+	ASPAEnable 	 bool 	`mapstructure:"aspa-enable" json:"aspa-enable,omitempty"`
+	ASConesEnable bool  `mapstructure:"ascones-enable" json:"ascones-enable,omitempty"`
+	// Relationship based on RFC 9234
+	Relationship string `mapstructure:"relationship" json:"relationship,omitempty"`
+
 }
 
 // struct for container bgp:config.
@@ -3211,6 +3219,8 @@ type NeighborConfig struct {
 	Ski          string `mapstructure:"SKI" json:"SKI,omitempty"`
 	ASPAEnable 	 bool 	`mapstructure:"aspa-enable" json:"aspa-enable,omitempty"`
 	ASConesEnable bool  `mapstructure:"ascones-enable" json:"ascones-enable,omitempty"`
+	// Relationship based on RFC 9234
+	Relationship string `mapstructure:"relationship" json:"relationship,omitempty"`
 }
 
 func (lhs *NeighborConfig) Equal(rhs *NeighborConfig) bool {

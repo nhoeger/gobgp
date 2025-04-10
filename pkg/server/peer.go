@@ -97,6 +97,18 @@ func newDynamicPeer(g *oc.Global, neighborAddress string, pg *oc.PeerGroup, loc 
 	return peer
 }
 
+// Relationship based on RFC 9234
+type Relationship int
+
+const (
+	PROVIDER Relationship = iota
+	RS
+	RS_CLIENT
+	CUSTOMER
+	PEER
+	UNKNOWN
+)
+
 type peer struct {
 	tableId           string
 	fsm               *fsm
@@ -108,6 +120,20 @@ type peer struct {
 	sentPaths           map[table.PathDestLocalKey]map[uint32]struct{}
 	sendMaxPathFiltered map[table.PathLocalKey]struct{}
 	llgrEndChs          []chan struct{}
+	relationship        Relationship
+}
+
+var relationshipStrings = map[string]Relationship{
+	"PROVIDER":  PROVIDER,
+	"RS":        RS,
+	"RS_CLIENT": RS_CLIENT,
+	"CUSTOMER":  CUSTOMER,
+	"PEER":      PEER,
+	"UNKNOWN":   UNKNOWN,
+}
+
+func (r Relationship) String() string {
+	return [...]string{"PROVIDER", "RS", "RS-CLIENT", "CUSTOMER", "PEER", "UNKNOWN"}[r]
 }
 
 func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *table.RoutingPolicy, logger log.Logger) *peer {
@@ -118,7 +144,16 @@ func newPeer(g *oc.Global, conf *oc.Neighbor, loc *table.TableManager, policy *t
 		prefixLimitWarned:   make(map[bgp.RouteFamily]bool),
 		sentPaths:           make(map[table.PathDestLocalKey]map[uint32]struct{}),
 		sendMaxPathFiltered: make(map[table.PathLocalKey]struct{}),
+		relationship:        5,
 	}
+
+	// extract relationship out of config file
+	// relationship = UNKNOWN if an error occurs
+	if val, ok := relationshipStrings[conf.Config.Relationship]; ok {
+		peer.relationship = val
+	}
+
+	logger.Info("Created newPeer", log.Fields{"Relationship": peer.relationship.String()})
 	if peer.isRouteServerClient() {
 		peer.tableId = conf.State.NeighborAddress
 	} else {

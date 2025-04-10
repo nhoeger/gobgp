@@ -689,6 +689,11 @@ func newNeighborFromAPIStruct(a *api.Peer) (*oc.Neighbor, error) {
 		pconf.Config.AdminDown = a.Conf.AdminDown
 		pconf.Config.NeighborInterface = a.Conf.NeighborInterface
 		pconf.Config.Vrf = a.Conf.Vrf
+		pconf.Config.ASConesEnable = a.Conf.ASConesEnable
+		pconf.Config.ASPAEnable = a.Conf.ASPAEnable
+		pconf.Config.BgpsecEnable = a.Conf.BGPsecEnable
+		pconf.Config.Ski = a.Conf.SKI
+		pconf.Config.Relationship = a.Conf.Relationship
 		pconf.AsPathOptions.Config.AllowOwnAs = uint8(a.Conf.AllowOwnAsn)
 		pconf.AsPathOptions.Config.ReplacePeerAs = a.Conf.ReplacePeerAsn
 		pconf.AsPathOptions.Config.AllowAsPathLoopLocal = a.Conf.AllowAspathLoopLocal
