@@ -85,7 +85,7 @@ func createSRxProxy(AS int, ip string, VNC func(*VerifyNotify), SC func()) GoSRx
 // If no IP is provided, the proxy tries to reach localhost:17900
 func (proxy *GoSRxProxy) connectToSrxServer(ip string) {
 	connectionCounter := 1
-	server := "localhost:17900"
+	server := fmt.Sprintf("%s:17900", ip)
 	log.Debug("Trying to connect to SRx-Server.")
 	log.Debug("SRxServer Address: ", ip)
 	if len(ip) != 0 {
@@ -107,7 +107,7 @@ func (proxy *GoSRxProxy) connectToSrxServer(ip string) {
 		}
 	}
 	if err != nil {
-		log.Fatal("Connection Failed. Please ensure that the SRx-Server is running.")
+		log.Fatal(fmt.Sprintf("Connection Failed. Please ensure that the SRx-Server at %s is running.", ip))
 	}
 }
 

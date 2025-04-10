@@ -1367,6 +1367,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 		}
 
 		if dsts := rib.Update(path); len(dsts) > 0 {
+			s.logger.Info("Sending Update to ", log.Fields{"peer:": peer.relationship})
 			s.propagateUpdateToNeighbors(rib, peer, path, dsts, true)
 		}
 	}
@@ -1864,6 +1865,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				s.ProcessValidUpdate(peer, e, m)*/
 				// --------------------------------------
 			} else {
+				// currently every update gets a transitive signature
 				s.ProcessValidUpdate(peer, e, m)
 			}
 			return

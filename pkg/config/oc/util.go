@@ -670,6 +670,7 @@ func NewGlobalFromConfigStruct(c *Global) *api.Global {
 		ListenAddresses:  c.Config.LocalAddressList,
 		Families:         families,
 		UseMultiplePaths: c.UseMultiplePaths.Config.Enabled,
+		SRxServer:        c.Config.SRxServer,
 		RouteSelectionOptions: &api.RouteSelectionOptionsConfig{
 			AlwaysCompareMed:         c.RouteSelectionOptions.Config.AlwaysCompareMed,
 			IgnoreAsPathLength:       c.RouteSelectionOptions.Config.IgnoreAsPathLength,

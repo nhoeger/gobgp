@@ -1914,6 +1914,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			RouterId:         a.RouterId,
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,
+			SRxServer:        a.SRxServer,
 		},
 		ApplyPolicy: *applyPolicy,
 		AfiSafis:    families,

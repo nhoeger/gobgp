@@ -279,6 +279,10 @@ func SetDefaultGlobalConfigValues(g *Global) error {
 		g.Config.Port = bgp.BGP_PORT
 	}
 
+	if g.Config.SRxServer == "" {
+		g.Config.SRxServer = "localhost"
+	}
+
 	if len(g.Config.LocalAddressList) == 0 {
 		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
 	}

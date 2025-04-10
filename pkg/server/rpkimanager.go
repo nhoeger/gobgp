@@ -411,6 +411,8 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 // Proxy can establish a connection with the SRx-Server and sends a hello message
 // Thread mandatory to keep proxy alive during runtime
 func (rm *RPKIManager) SetSRxServer(ip string) error {
+	msg := fmt.Sprintf("Got the follwing ip: %s", ip)
+	rm.Server.logger.Info(msg, nil)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	rm.Proxy = createSRxProxy(rm.AS, ip, rm.handleVerifyNotify, rm.handleSyncCallback)

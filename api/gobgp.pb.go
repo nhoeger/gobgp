@@ -10460,6 +10460,7 @@ type Global struct {
 	GracefulRestart       *GracefulRestart             `protobuf:"bytes,10,opt,name=graceful_restart,json=gracefulRestart,proto3" json:"graceful_restart,omitempty"`
 	ApplyPolicy           *ApplyPolicy                 `protobuf:"bytes,11,opt,name=apply_policy,json=applyPolicy,proto3" json:"apply_policy,omitempty"`
 	BindToDevice          string                       `protobuf:"bytes,12,opt,name=bind_to_device,json=bindToDevice,proto3" json:"bind_to_device,omitempty"`
+	SRxServer			  string					   `protobuf:"bytes,13,opt,name=bind_to_device,json=srxserver,proto3" json:"srxserver,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -10570,6 +10571,15 @@ func (x *Global) GetApplyPolicy() *ApplyPolicy {
 	}
 	return nil
 }
+
+
+func (x *Global) GetSRxServer() string{
+	if x != nil {
+		return x.SRxServer
+	}
+	return ""
+}
+
 
 func (x *Global) GetBindToDevice() string {
 	if x != nil {
