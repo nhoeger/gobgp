@@ -135,9 +135,10 @@ type fsmMsg struct {
 }
 
 type fsmOutgoingMsg struct {
-	Paths        []*table.Path
-	Notification *bgp.BGPMessage
-	StayIdle     bool
+	Paths             []*table.Path
+	Notification      *bgp.BGPMessage
+	StayIdle          bool
+	GenerateSignature bool
 }
 
 const (

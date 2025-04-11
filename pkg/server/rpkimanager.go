@@ -392,10 +392,11 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 // Input: pointer to BGPServer
 func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 	s.logger.Info("[i] Creating new RPKI Manager", nil)
+	ASN := int(s.bgpConfig.Global.Config.As)
 	rm := &RPKIManager{
-		AS:             int(s.bgpConfig.Global.Config.As),
+		AS:             ASN,
 		Server:         s,
-		ID:             1,
+		ID:             ASN,
 		PendingUpdates: make([]*srx_update, 0),
 		StartTime:      time.Now(),
 		Resets:         0,

@@ -575,9 +575,10 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 
 func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
-		Paths:        paths,
-		Notification: notification,
-		StayIdle:     stayIdle,
+		Paths:             paths,
+		Notification:      notification,
+		StayIdle:          stayIdle,
+		GenerateSignature: true,
 	}
 }
 

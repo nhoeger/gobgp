@@ -504,7 +504,9 @@ func newPacker(f bgp.RouteFamily) packerInterface {
 
 func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
 	msgs := make([]*bgp.BGPMessage, 0, len(pathList))
-
+	for _, option := range options {
+		fmt.Println(option)
+	}
 	m := make(map[bgp.RouteFamily]packerInterface)
 	for _, path := range pathList {
 		f := path.GetRouteFamily()
