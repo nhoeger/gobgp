@@ -47,7 +47,7 @@ func sendHello(proxy GoSRxProxy) {
 		reserved:         "00",
 		zero:             "00000000",
 		length:           "00000000",
-		proxy_identifier: "00000001",
+		proxy_identifier: converted_asn,
 		ASN:              converted_asn,
 	}
 

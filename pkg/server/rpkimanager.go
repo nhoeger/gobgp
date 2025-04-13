@@ -187,6 +187,7 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 
 	// Iterate through all paths inside the BGP UPDATE message
 	for _, path := range e.PathList {
+
 		// Create new SRxUpdate for each path
 		update := srx_update{
 			local_id: rm.ID,

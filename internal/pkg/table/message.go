@@ -507,6 +507,7 @@ func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOptio
 	for _, option := range options {
 		fmt.Println(option)
 	}
+
 	m := make(map[bgp.RouteFamily]packerInterface)
 	for _, path := range pathList {
 		f := path.GetRouteFamily()
@@ -517,6 +518,7 @@ func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOptio
 	}
 
 	for _, p := range m {
+
 		msgs = append(msgs, p.pack(options...)...)
 	}
 	return msgs

@@ -12,5 +12,5 @@ RUN go install ./...
 EXPOSE 179 50051 17900
 
 # Run gobgpd with the config file
-CMD ["gobgpd", "-f", "demo.conf", "-l", "debug"]
+CMD ["gobgpd", "-f", "demo.conf", "-l", "debug", "-p"]
 # CMD ["sh"]
