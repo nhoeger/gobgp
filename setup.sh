@@ -24,8 +24,8 @@ gnome-terminal --title="SRx-Server" -- bash -c "docker run --rm -it --name srx_s
 sleep 1
 
 # Start router instances 
-gnome-terminal --title="GoBGP 1 - AS65004" -- bash -c "cd /home/nils/Dokumente/ASPA+/gobgp && docker run --name gobgp_router_1 --rm -it -v ./router_config_files/router_1.conf:/root/demo.conf gobgp"
+gnome-terminal --title="GoBGP 1 - AS65004" -- bash -c "cd /home/nils/Dokumente/ASPA+/gobgp && docker run --name AS65004 --rm -it -v ./router_config_files/router_1.conf:/root/demo.conf gobgp"
 # sleep 1
 # gnome-terminal -- bash -c "docker run --name gobgp_router_2 --rm -it -v ./router_config_files/router_2.conf:/root/demo.conf gobgp"
 sleep 1
-gnome-terminal --title="GoBGP 3 - AS65006" -- bash -c "cd /home/nils/Dokumente/ASPA+/gobgp && docker run --name gobgp_router_3 --rm -it -v ./router_config_files/router_3.conf:/root/demo.conf gobgp"
+gnome-terminal --title="GoBGP 3 - AS65006" -- bash -c "cd /home/nils/Dokumente/ASPA+/gobgp && docker run --name AS65006 --rm -it -v ./router_config_files/router_3.conf:/root/demo.conf gobgp"
