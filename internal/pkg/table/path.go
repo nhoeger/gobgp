@@ -931,6 +931,7 @@ func (path *Path) GetExtCommunities() []bgp.ExtendedCommunityInterface {
 }
 
 func (path *Path) SetExtCommunities(exts []bgp.ExtendedCommunityInterface, doReplace bool) {
+	print("Lets set communities")
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_EXTENDED_COMMUNITIES)
 	if attr != nil {
 		l := attr.(*bgp.PathAttributeExtendedCommunities).Value

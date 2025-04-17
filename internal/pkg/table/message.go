@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"crypto/rand"
+
 	"github.com/osrg/gobgp/v3/pkg/log"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
@@ -503,10 +505,29 @@ func newPacker(f bgp.RouteFamily) packerInterface {
 }
 
 func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOption) []*bgp.BGPMessage {
-	msgs := make([]*bgp.BGPMessage, 0, len(pathList))
-	for _, option := range options {
-		fmt.Println(option)
+	fmt.Println("#-----------------------------------------#")
+	// Example: 8-byte extended community: 0x80 0x0A deadbeefcafe
+	value := make([]byte, 7) // OpaqueExtended expects 7 bytes
+	_, err := rand.Read(value)
+	if err != nil {
+		fmt.Println("Something went wrong with rand.Read", err)
+		value = []byte{0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0x00}
 	}
+
+	ec := &bgp.OpaqueExtended{
+		IsTransitive: true, // Transitive Experimental
+		Value:        value,
+	}
+
+	// Construct the slice
+	exts := []bgp.ExtendedCommunityInterface{ec}
+
+	// Call your function
+	for _, path := range pathList {
+		path.SetExtCommunities(exts, true)
+	}
+
+	msgs := make([]*bgp.BGPMessage, 0, len(pathList))
 
 	m := make(map[bgp.RouteFamily]packerInterface)
 	for _, path := range pathList {
@@ -518,8 +539,13 @@ func CreateUpdateMsgFromPaths(pathList []*Path, options ...*bgp.MarshallingOptio
 	}
 
 	for _, p := range m {
-
 		msgs = append(msgs, p.pack(options...)...)
 	}
+	if len(msgs) != 0 {
+		for _, msg := range msgs {
+			fmt.Println("Message to send", msg.Body, "||| ", msg.Header)
+		}
+	}
+	fmt.Println("#-----------------------------------------#")
 	return msgs
 }

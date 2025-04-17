@@ -574,6 +574,14 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 }
 
 func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
+	for _, path := range paths {
+		x := path.GetExtCommunities()
+		if x != nil {
+			fmt.Println("Any Communities parsed: ", path.GetExtCommunities())
+		} else {
+			fmt.Println("No Communities parsed")
+		}
+	}
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
 		Paths:             paths,
 		Notification:      notification,
@@ -1204,6 +1212,7 @@ func (s *BgpServer) sendSecondaryRoutes(peer *peer, newPath *table.Path, dsts []
 }
 
 func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) []*table.Path {
+	s.logger.Info("processOutgoingPaths", log.Fields{"peer": peer.ID(), "paths": paths, "olds": olds})
 	if !needToAdvertise(peer) {
 		return nil
 	}
@@ -1218,6 +1227,7 @@ func (s *BgpServer) processOutgoingPaths(peer *peer, paths, olds []*table.Path) 
 			outgoing = append(outgoing, p)
 		}
 	}
+	s.logger.Info("Returned paths", log.Fields{"peer": peer.ID(), "paths": outgoing})
 	return outgoing
 }
 
@@ -1254,6 +1264,8 @@ func (s *BgpServer) handleRouteRefresh(peer *peer, e *fsmMsg) []*table.Path {
 }
 
 func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
+	// s.logger.Info("propagateUpdate", log.Fields{"peer": peer.ID(), "paths": pathList})
+	// Example return: paths="[{ 10.2.0.0/24 | src: { 172.17.0.5 | as: 65006, id: 172.17.0.6 }, nh: 172.17.0.5, withdraw }]" peer=172.17.0.5
 	rs := peer != nil && peer.isRouteServerClient()
 	vrf := false
 	if peer != nil {
@@ -1363,6 +1375,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 				} else {
 					paths = s.processOutgoingPaths(peer, paths, nil)
 				}
+				s.logger.Info("Sending Update to ", log.Fields{"peer:": peer.relationship, "paths": paths})
 				sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
 		}
@@ -1528,6 +1541,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				oldList = nil
 			}
 			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
+				s.logger.Info("Sending Update in line 1536 to ", log.Fields{"peer:": targetPeer.ID(), "paths": paths})
 				sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 			}
 		}
@@ -2517,6 +2531,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 
+		s.rpkiManager.SetSKI(s.bgpConfig.Global.Config.SKI)
 		s.rpkiManager.SetAS(s.bgpConfig.Global.Config.As)
 		s.rpkiManager.SetSRxServer(s.bgpConfig.Global.Config.SRxServer)
 		return nil

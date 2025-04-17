@@ -10461,6 +10461,7 @@ type Global struct {
 	ApplyPolicy           *ApplyPolicy                 `protobuf:"bytes,11,opt,name=apply_policy,json=applyPolicy,proto3" json:"apply_policy,omitempty"`
 	BindToDevice          string                       `protobuf:"bytes,12,opt,name=bind_to_device,json=bindToDevice,proto3" json:"bind_to_device,omitempty"`
 	SRxServer			  string					   `protobuf:"bytes,13,opt,name=bind_to_device,json=srxserver,proto3" json:"srxserver,omitempty"`
+	SKI					  string 					   `protobuf:"bytes,14,opt,name=bind_to_device,json=SKI,proto3" json:"SKI,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -10576,6 +10577,13 @@ func (x *Global) GetApplyPolicy() *ApplyPolicy {
 func (x *Global) GetSRxServer() string{
 	if x != nil {
 		return x.SRxServer
+	}
+	return ""
+}
+
+func (x *Global) GetSKI() string{
+	if x != nil {
+		return x.SKI
 	}
 	return ""
 }

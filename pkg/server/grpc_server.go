@@ -1915,6 +1915,7 @@ func newGlobalFromAPIStruct(a *api.Global) *oc.Global {
 			Port:             a.ListenPort,
 			LocalAddressList: a.ListenAddresses,
 			SRxServer:        a.SRxServer,
+			SKI:              a.SKI,
 		},
 		ApplyPolicy: *applyPolicy,
 		AfiSafis:    families,

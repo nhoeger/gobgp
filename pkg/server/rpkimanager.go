@@ -31,6 +31,7 @@ type RPKIManager struct {
 	StartTime      time.Time
 	Resets         int
 	Ready          *bool
+	SKI            string
 }
 
 func hexToBinary(hexStr string) (string, error) {
@@ -403,6 +404,7 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 		Resets:         0,
 		Ready:          new(bool),
 		Queue:          make([]*VerifyNotify, 0),
+		SKI:            "",
 	}
 	*rm.Ready = true
 	s.logger.Info("[i] RPKI Manager ready", nil)
@@ -419,6 +421,18 @@ func (rm *RPKIManager) SetSRxServer(ip string) error {
 	wg.Add(1)
 	rm.Proxy = createSRxProxy(rm.AS, ip, rm.handleVerifyNotify, rm.handleSyncCallback)
 	go rm.Proxy.proxyBackgroundThread(&wg)
+	return nil
+}
+
+// SetSKI sets the SKI of the RPKIManager
+// The SKI is used for BGPsec validation
+func (rm *RPKIManager) SetSKI(SKI string) error {
+	fmt.Println("Setting SKI", SKI)
+	if len(SKI) != 40 {
+		fmt.Println("SKI is not 40 characters long")
+		return nil
+	}
+	rm.SKI = SKI
 	return nil
 }
 

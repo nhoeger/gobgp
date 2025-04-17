@@ -283,6 +283,10 @@ func SetDefaultGlobalConfigValues(g *Global) error {
 		g.Config.SRxServer = "localhost"
 	}
 
+	if g.Config.SKI == "" {
+		g.Config.SKI = "" // Only asing default key for testing
+	}
+
 	if len(g.Config.LocalAddressList) == 0 {
 		g.Config.LocalAddressList = []string{"0.0.0.0", "::"}
 	}
