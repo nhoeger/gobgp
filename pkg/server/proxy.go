@@ -36,7 +36,7 @@ func validate_call(proxy *GoSRxProxy, input string) {
 
 // Sends Hello message to SRx-Server
 // ASN becomes the identifier of the proxy
-func sendHello(proxy GoSRxProxy) {
+func sendHello(proxy GoSRxProxy, SKI string) {
 	// Convert the ASN to a hex value
 	converted_asn := fmt.Sprintf("%08x", int64(proxy.ASN))
 
@@ -49,10 +49,11 @@ func sendHello(proxy GoSRxProxy) {
 		length:           "00000000",
 		proxy_identifier: converted_asn,
 		ASN:              converted_asn,
+		SKI:              SKI,
 	}
 
 	// Get the length in bytes
-	length := len(hm.PDU) + len(hm.Version) + len(hm.reserved) + len(hm.zero) + len(hm.length) + len(hm.proxy_identifier) + len(hm.ASN)
+	length := len(hm.PDU) + len(hm.Version) + len(hm.reserved) + len(hm.zero) + len(hm.length) + len(hm.proxy_identifier) + len(hm.ASN) + len(hm.SKI)
 	length = length / 2
 	hm.length = fmt.Sprintf("%08x", length)
 
@@ -66,7 +67,7 @@ func sendHello(proxy GoSRxProxy) {
 }
 
 // New Proxy instance
-func createSRxProxy(AS int, ip string, VNC func(*VerifyNotify), SC func()) GoSRxProxy {
+func createSRxProxy(AS int, ip string, SKI string, VNC func(*VerifyNotify), SC func()) GoSRxProxy {
 	log.Info("[i] Creating Proxy")
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -77,7 +78,7 @@ func createSRxProxy(AS int, ip string, VNC func(*VerifyNotify), SC func()) GoSRx
 		SyncNotifyCallback:   SC,
 	}
 	pr.connectToSrxServer(ip)
-	sendHello(pr)
+	sendHello(pr, SKI)
 	return pr
 }
 
@@ -136,6 +137,7 @@ func (proxy *GoSRxProxy) proxyBackgroundThread(wg *sync.WaitGroup) {
 func (proxy *GoSRxProxy) processInput(st string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	PDU := st[:2]
+	log.Info("------> Received PDU: ", PDU)
 	if PDU == HelloRepsonsePDU {
 		log.Debug("Received Hello Response")
 		if len(st) > 32 {
@@ -162,6 +164,10 @@ func (proxy *GoSRxProxy) processInput(st string, wg *sync.WaitGroup) {
 			proxy.verifyNotifyCallback(st)
 		}
 	}
+	if PDU == TransitivePDU {
+		log.Info("Received Transitive Message")
+	}
+	fmt.Println("Processing Input: ", st)
 }
 
 // Convert data structures to string before sending

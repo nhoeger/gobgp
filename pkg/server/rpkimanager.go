@@ -404,7 +404,7 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 		Resets:         0,
 		Ready:          new(bool),
 		Queue:          make([]*VerifyNotify, 0),
-		SKI:            "",
+		SKI:            "AA1B2DFD80636AE943D9DC9FF42C1AF9D95C7218",
 	}
 	*rm.Ready = true
 	s.logger.Info("[i] RPKI Manager ready", nil)
@@ -419,7 +419,7 @@ func (rm *RPKIManager) SetSRxServer(ip string) error {
 	rm.Server.logger.Info(msg, nil)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	rm.Proxy = createSRxProxy(rm.AS, ip, rm.handleVerifyNotify, rm.handleSyncCallback)
+	rm.Proxy = createSRxProxy(rm.AS, ip, rm.SKI, rm.handleVerifyNotify, rm.handleSyncCallback)
 	go rm.Proxy.proxyBackgroundThread(&wg)
 	return nil
 }

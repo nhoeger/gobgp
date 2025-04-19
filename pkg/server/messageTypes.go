@@ -15,6 +15,7 @@ const (
 	PeerChangePDU            = "09"
 	SyncMessagePDU           = "0a"
 	ErrorPacketPDU           = "0b"
+	TransitivePDU            = "0e"
 )
 
 const (
@@ -106,6 +107,7 @@ type HelloMessage struct {
 	length           string
 	proxy_identifier string
 	ASN              string
+	SKI              string
 }
 
 type BGPsecData struct {
