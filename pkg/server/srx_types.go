@@ -1,6 +1,29 @@
 package server
 
-import "net"
+import (
+	"net"
+)
+
+const (
+	PDU_SRXPROXY_HELLO                      = 0
+	PDU_SRXPROXY_HELLO_RESPONSE             = 1
+	PDU_SRXPROXY_GOODBYE                    = 2
+	PDU_SRXPROXY_VERIFY_V4_REQUEST          = 3
+	PDU_SRXPROXY_VERIFY_V6_REQUEST          = 4
+	PDU_SRXPROXY_SIGN_REQUEST               = 5
+	PDU_SRXPROXY_VERI_NOTIFICATION          = 6
+	PDU_SRXPROXY_SIGN_NOTIFICATION          = 7
+	PDU_SRXPROXY_DELTE_UPDATE               = 8
+	PDU_SRXPROXY_PEER_CHANGE                = 9
+	PDU_SRXPROXY_SYNC_REQUEST               = 10
+	PDU_SRXPROXY_ERROR                      = 11
+	PDU_SRXPROXY_UNKNOWN                    = 12
+	PDU_SRXPROXY_REGISTER_SKI               = 13
+	PDU_SRXPROXY_SIGTRA_GENERATION_REQUEST  = 14
+	PDU_SRXPROXY_SIGTRA_VALIDATION_REQUEST  = 15
+	PDU_SRXPROXY_SIGTRA_SIGNATURE_RESPONSE  = 16
+	PDU_SRXPROXY_SIGTRA_VALIDATION_RESPONSE = 17
+)
 
 const (
 	HelloPDU                 = "00"
@@ -18,6 +41,43 @@ const (
 	TransitivePDU            = "0e"
 )
 
+type SRxValidationResultVal string
+
+type BGPsecDate struct {
+	lengthPathValData string
+	numOfHops         string
+	bgpsecLength      string
+	afi               string
+	safi              string
+	prefixLenBgpsec   string
+	ipPreAddByteA     string
+	ipPreAddByteB     string
+	ipPreAddByteC     string
+	ipPreAddByteD     string
+}
+
+type HelloMessage struct {
+	PDU              string
+	Version          string
+	reserved         string
+	zero             string
+	length           string
+	proxy_identifier string
+	ASN              string
+	SKI              string
+}
+
+type BGPsecData struct {
+	NumberOfHops   int
+	ASPath         []string
+	AttrLength     int
+	afi            int
+	safi           int
+	reserved       int
+	localAS        string
+	bgpsecPathAttr int
+}
+
 const (
 	SRxRS_SRX      = 0
 	SRxRS_ROUTER   = 1
@@ -25,8 +85,6 @@ const (
 	SRxRS_UNKNOWN  = 3
 	SRxRS_DONOTUSE = 1280
 )
-
-type SRxValidationResultVal string
 
 const (
 	SRx_RESULT_VALID        SRxValidationResultVal = "0"
@@ -86,39 +144,54 @@ type VerifyNotify struct {
 	UpdateIdentifier string
 }
 
-type BGPsecDate struct {
-	lengthPathValData string
-	numOfHops         string
-	bgpsecLength      string
-	afi               string
-	safi              string
-	prefixLenBgpsec   string
-	ipPreAddByteA     string
-	ipPreAddByteB     string
-	ipPreAddByteC     string
-	ipPreAddByteD     string
+type SRxHeader struct {
+	PDU        string
+	Reserved16 string
+	Reserved8  string
+	Reserved32 string
+	Length     string
 }
 
-type HelloMessage struct {
-	PDU              string
-	Version          string
-	reserved         string
-	zero             string
-	length           string
-	proxy_identifier string
-	ASN              string
-	SKI              string
+type SigTraGenRequest struct {
+	SignatureID    string
+	PrefixLength   string
+	Prefix         string
+	ASPathLength   string
+	ASPath         string
+	PKIIDType      string
+	PKIID          string
+	Timestamp      string
+	OTCFlags       string
+	OTCField       string
+	PeerListLength string
+	PeerList       string
 }
 
-type BGPsecData struct {
-	NumberOfHops   int
-	ASPath         []string
-	AttrLength     int
-	afi            int
-	safi           int
-	reserved       int
-	localAS        string
-	bgpsecPathAttr int
+type SigTraValReq struct {
+	signatureID string
+	blockCount  string
+	blocks      string // SigBlocks
+}
+
+type SigBlock struct {
+	prefixLength string
+	prefix       string
+	asPathLength string
+	asPath       string
+	pkiIDType    string
+	pkiID        string
+	timestamp    string
+	signature    string
+	OTCFlags     string
+	OTCField     string
+}
+
+type SkiMessage struct {
+	PDU             string
+	Version         string
+	length          string
+	proxyIdentifier string
+	ski             string
 }
 
 type SRxResult struct {
@@ -161,6 +234,15 @@ const (
 	SRX_FLAG_ROA_BGPSEC_ASPA_ASCONE SRxVerifyFlag = SRX_FLAG_ROA | SRX_FLAG_BGPSEC | SRX_FLAG_ASPA | SRX_FLAG_ASCONE
 	SRX_FLAG_REQUEST_RECEIPT        SRxVerifyFlag = 128
 )
+
+type HelloResponseMessage struct {
+	PDU              string
+	version          string
+	reserved         string
+	zero             string
+	length           string
+	proxy_identifier string
+}
 
 type ASTypeDef int
 
