@@ -259,12 +259,10 @@ func (proxy *GoSRxProxy) sendSigtraGenerationRequest() {
 		Prefix:         "00000000",
 		ASPathLength:   "00",
 		ASPath:         "00000000",
-		PKIIDType:      "00",
-		PKIID:          "00000000000000000000",
 		Timestamp:      "0000000000000000",
-		OTCFlags:       "00",
+		OTCField:       "00000000",
 		PeerListLength: "00",
-		PeerList:       "12345678",
+		PeerList:       "",
 	}
 
 	// DEMO GENERATION FOR ALL FIELDS:

@@ -1881,6 +1881,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				// --------------------------------------
 			} else {
 				// currently every update gets a transitive signature
+				s.rpkiManager.validate(peer, m, e)
 				s.ProcessValidUpdate(peer, e, m)
 			}
 			return

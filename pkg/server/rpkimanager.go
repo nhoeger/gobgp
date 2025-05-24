@@ -60,9 +60,9 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 // Thread mandatory to keep proxy alive during runtime
 func (rm *RPKIManager) SetSRxServer(ip string) error {
 	// REMOVE: ONLY FOR TESTING
-	//msg := fmt.Sprintf("Got the follwing ip: %s", ip)
-	//fmt.Println(msg)
-	//rm.Proxy, _ = NewGoSRxProxy(rm.AS, ip, rm.SKI, nil, nil)
+	msg := fmt.Sprintf("Got the follwing ip: %s", ip)
+	fmt.Println(msg)
+	rm.Proxy, _ = NewGoSRxProxy(rm.AS, ip, rm.SKI, nil, nil)
 	return nil
 }
 
@@ -113,6 +113,7 @@ func (rm *RPKIManager) ValidateSignature(signatures string) {
 }
 
 func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
+	fmt.Println("Validating BGP update message!!!!!!!!!!!!!!!!")
 	// Iterate over all paths in the update message
 	for _, path := range e.PathList {
 		// Create a new SRxTuple for each path
@@ -177,5 +178,15 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 		}
 		rm.PendingUpdate = append(rm.PendingUpdate, &update)
 		rm.CurrentUpdate = (rm.CurrentUpdate % 10000) + 1
+
+		// Print the SRxTuple for debugging
+		fmt.Printf("SRxTuple: %+v\n", update)
+		fmt.Printf("Prefix: %+v\n", prefix)
+		fmt.Printf("ASPathList: %+v\n", ASlist)
+		fmt.Printf("Prefix Length: %d\n", prefixLen)
+
+		fmt.Printf("Request Result: %+v\n", reqRes)
+		fmt.Printf("SRx Result: %+v\n", srxRes)
+		fmt.Println("Pending updates:", len(rm.PendingUpdate))
 	}
 }
