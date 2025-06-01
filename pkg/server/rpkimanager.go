@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/osrg/gobgp/v3/internal/pkg/table"
 	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
@@ -59,9 +60,6 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 // Proxy can establish a connection with the SRx-Server and sends a hello message
 // Thread mandatory to keep proxy alive during runtime
 func (rm *RPKIManager) SetSRxServer(ip string) error {
-	// REMOVE: ONLY FOR TESTING
-	msg := fmt.Sprintf("Got the follwing ip: %s", ip)
-	fmt.Println(msg)
 	rm.Proxy, _ = NewGoSRxProxy(rm.AS, ip, rm.SKI, nil, nil)
 	return nil
 }
@@ -103,8 +101,48 @@ func (rm *RPKIManager) ValidateUpdate(signatures string) error {
 }
 
 // Generate signatures
-func (rm *RPKIManager) GenerateSignature() {
-	fmt.Println("Generating signatures")
+func (rm *RPKIManager) GenerateSignature(peer *peer, paths []*table.Path, notification *bgp.BGPMessage) {
+	// Prepare everything for signature generation for each path
+	// Iterate over all paths
+	for _, path := range paths {
+		// Extract prefix
+		prefixLen := 0
+		prefixAddr := net.ParseIP("0.0.0.0")
+		pathString := path.String()
+		words := strings.Fields(pathString)
+		for _, word := range words {
+			for j, ch := range word {
+				if ch == '/' {
+					tmpPref, _ := strconv.Atoi(word[j+1:])
+					prefixLen = tmpPref
+					prefixAddr = net.ParseIP(word[:j])
+				}
+			}
+		}
+
+		prefix_length := prefixLen
+		prefix_version := 4
+		prefix_address := prefixAddr
+		fmt.Printf("Prefix length: %d\n", prefix_length)
+		fmt.Printf("Prefix version: %d\n", prefix_version)
+		fmt.Printf("Prefix address: %s\n", prefix_address)
+
+		// Extract AS path
+		asList := path.GetAsList()
+		fmt.Printf("AS path: %s\n", asList)
+
+		// Extract the next hop
+		nextHop := peer.AS()
+		fmt.Printf("Next hop: %s\n", nextHop)
+
+		// Generate timestamp
+		timestamp := uint32(time.Now().Unix())
+
+		// TODO: Add OTC functionality
+		otcField := fmt.Sprintf("%08x", int64(65000))
+
+		rm.Proxy.sendSigtraGenerationRequest(prefix_address, prefix_length, asList, timestamp, otcField, peer)
+	}
 }
 
 // Validate signatures

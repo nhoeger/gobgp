@@ -158,13 +158,13 @@ type SigTraGenRequest struct {
 	Prefix         string
 	ASPathLength   string
 	ASPath         string
-	PKIIDType      string
-	PKIID          string
+	OriginAS       string
 	Timestamp      string
-	OTCFlags       string
 	OTCField       string
 	PeerListLength string
 	PeerList       string
+	requestingAS   string
+	blockCount     string
 }
 
 type SigTraValReq struct {

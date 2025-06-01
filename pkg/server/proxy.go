@@ -110,7 +110,6 @@ func (proxy *GoSRxProxy) ProxyBackgroundThread(wg *sync.WaitGroup) bool {
 		wg.Add(1)
 		proxy.processInput(serverResponse, wg)
 	}
-	return true
 }
 
 /*
@@ -134,8 +133,6 @@ func (proxy *GoSRxProxy) processInput(st string, wg *sync.WaitGroup) {
 		proxy.handleHelloResponse(to_process)
 	case PDU_SRXPROXY_SYNC_REQUEST:
 		fmt.Println("[i] Received PDU_SRXPROXY_SYNC_REQUEST")
-		proxy.sendSigtraGenerationRequest()
-		//proxy.sendSigtraValidationRequest()
 	case PDU_SRXPROXY_ERROR:
 		fmt.Println("[!] Received PDU_SRXPROXY_ERROR")
 	case PDU_SRXPROXY_VERI_NOTIFICATION:
@@ -242,81 +239,68 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest() {
 // This function sends a SigTraGenRequest to the SRx-Server
 // It is used to request the generation of a signature for a given prefix
 // and a given number of peers
-func (proxy *GoSRxProxy) sendSigtraGenerationRequest() {
+func (proxy *GoSRxProxy) sendSigtraGenerationRequest(prefix net.IP, prefixLength int, asPath []uint32, timestamp uint32, otcField string, peer *peer) {
 	// SRx Basic Header
-	hdr := SRxHeader{
-		PDU:        fmt.Sprintf("%02x", PDU_SRXPROXY_SIGTRA_GENERATION_REQUEST),
-		Reserved16: "0000",
-		Reserved8:  "00",
-		Reserved32: "00000000",
-		Length:     "00000000",
-	}
+	hdr := proxy.generateHeader(PDU_SRXPROXY_SIGTRA_GENERATION_REQUEST)
 
 	// Packet to request signature generation
-	sr := SigTraGenRequest{
-		SignatureID:    "00000000",
-		PrefixLength:   "00",
-		Prefix:         "00000000",
-		ASPathLength:   "00",
-		ASPath:         "00000000",
-		Timestamp:      "0000000000000000",
-		OTCField:       "00000000",
-		PeerListLength: "00",
-		PeerList:       "",
-	}
+	sr := SigTraGenRequest{}
+	sr.requestingAS = fmt.Sprintf("%08x", int64(proxy.ASN))
 
-	// DEMO GENERATION FOR ALL FIELDS:
-	sr.SignatureID = "00034101"
+	// Generate a random signature ID
+	sr.SignatureID = fmt.Sprintf("%08x", int64(proxy.UpdateIdentifier))
+	proxy.UpdateIdentifier += 1
 
-	// fake prefix
-	prefixLen := 16
-	prefixAddr := net.ParseIP("15.64.5.0")
-
-	tmp := hex.EncodeToString(prefixAddr)
+	// Prefix
+	tmp := hex.EncodeToString(prefix)
 	sr.Prefix = tmp[len(tmp)-8:]
-	sr.PrefixLength = strconv.FormatInt(int64(prefixLen), 16)
+	sr.PrefixLength = strconv.FormatInt(int64(prefixLength), 16)
 
-	// fake as_path
-	length := 2
-	sr.ASPathLength = fmt.Sprintf("%02x", length)
-	sr.ASPath = fmt.Sprintf("%08x", int64(65002)) + fmt.Sprintf("%08x", int64(65003))
+	// AS Path
+	sr.ASPath = ""
+	for _, asn := range asPath {
+		// Convert ASN to hex and pad it to 8 characters
+		hexValue := fmt.Sprintf("%08x", asn)
+		fmt.Println("AS Path ASN:", asn, "Hex Value:", hexValue)
+		sr.ASPath += hexValue
+	}
+	length := len(sr.ASPath)
 
 	// fill in the rest of the AS path with 0
 	for i := length; i < 16; i++ {
 		sr.ASPath += "00000000"
 	}
-	fmt.Println("Lenght of ASPath: ", len(sr.ASPath)/8)
 
-	// fake pkiid
-	sr.PKIIDType = "01"
-	sr.PKIID = "0000000000100000000200000000000000000100"
+	// timestamp
+	sr.Timestamp = fmt.Sprintf("%08x", int64(time.Now().Unix()))
 
-	// fake timestamp
-	timestamp := uint32(time.Now().Unix())
-	sr.Timestamp = fmt.Sprintf("%08x", timestamp)
+	// OTCField
+	sr.OTCField = otcField
 
-	// fake OTCFlags
-	sr.OTCFlags = "01"
-	sr.OTCField = fmt.Sprintf("%08x", int64(65003))
-
-	// fake peer list
-	numberOfPeers := 2
+	// Peers: Currently always one peer
+	numberOfPeers := 1
 	sr.PeerListLength = fmt.Sprintf("%02x", numberOfPeers)
-	sr.PeerList = fmt.Sprintf("%08x", int64(65004)) + fmt.Sprintf("%08x", int64(65005))
+	sr.PeerList = fmt.Sprintf("%08x", int64(peer.AS()))
 	// fill in the rest of the AS path with 0
 	for i := numberOfPeers; i < 16; i++ {
 		sr.PeerList += "00000000"
 	}
 
+	// Extract originating AS out of AS path
+	sr.OriginAS = "00000000"
+	if len(asPath) > 0 {
+		// Convert ASN to hex and pad it to 8 characters
+		sr.OriginAS = fmt.Sprintf("%08x", asPath[len(asPath)-1])
+	}
+	sr.blockCount = "00"
+
 	hdr_length := len(hdr.PDU) + len(hdr.Reserved16) + len(hdr.Reserved8) + len(hdr.Reserved32) + len(hdr.Length)
-	sr_length := len(sr.SignatureID) + len(sr.PrefixLength) + len(sr.Prefix) + len(sr.ASPathLength) + len(sr.ASPath) + len(sr.PKIIDType) + len(sr.PKIID) + len(sr.Timestamp) + len(sr.OTCFlags) + len(sr.OTCField) + len(sr.PeerListLength) + len(sr.PeerList)
+	sr_length := len(sr.SignatureID) + len(sr.PrefixLength) + len(sr.Prefix) +
+		len(sr.ASPathLength) + len(sr.ASPath) + len(sr.OriginAS) + len(sr.Timestamp) +
+		len(sr.OTCField) + len(sr.PeerListLength) + len(sr.PeerList) + len(sr.requestingAS) + len(sr.blockCount)
 
 	total_length := hdr_length + sr_length
 	total_length = total_length / 2
-
-	fmt.Println("Total Length calculated: ", total_length)
-	fmt.Println("Header Length: ", hdr_length)
-	fmt.Println("SigTraGenRequest Length: ", sr_length)
 	hdr.Length = fmt.Sprintf("%08x", total_length)
 
 	hexString_hdr := structToString(hdr)
@@ -328,12 +312,6 @@ func (proxy *GoSRxProxy) sendSigtraGenerationRequest() {
 	bytes := make([]byte, len(bytes_hdr)+len(bytes_sr))
 	copy(bytes, bytes_hdr)
 	copy(bytes[len(bytes_hdr):], bytes_sr)
-
-	printHeader(hdr)
-	printSigtraGenReq(sr)
-
-	fmt.Println("Hex String: ", hexString_sr, " length; ", len(hexString_sr))
-	fmt.Println("Hex String: ", hexString_hdr, " length; ", len(hexString_hdr))
 
 	_, err := proxy.con.Write(bytes)
 	if err != nil {
@@ -427,4 +405,15 @@ func validate_call(proxy *GoSRxProxy, input string) {
 		fmt.Println(err)
 	}
 
+}
+
+func (proxy *GoSRxProxy) generateHeader(PDU int) SRxHeader {
+	hdr := SRxHeader{
+		PDU:        fmt.Sprintf("%02x", PDU),
+		Reserved16: "0000",
+		Reserved8:  "00",
+		Reserved32: "00000000",
+		Length:     "00000000",
+	}
+	return hdr
 }

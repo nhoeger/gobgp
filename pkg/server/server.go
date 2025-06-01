@@ -574,6 +574,19 @@ func (s *BgpServer) matchLongestDynamicNeighborPrefix(a string) *peerGroup {
 }
 
 func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
+	fmt.Print("ATTENTION: NO SIGNATURES GENERATED IN THIS FUNCTION!\n")
+	// Lets print the peers:
+	fmt.Println("Peer ID: ", peer.ID())
+	fmt.Println("Peer AS: ", peer.AS())
+	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
+		Paths:             paths,
+		Notification:      notification,
+		StayIdle:          stayIdle,
+		GenerateSignature: true,
+	}
+}
+
+func (s *BgpServer) sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
 	for _, path := range paths {
 		x := path.GetExtCommunities()
 		if x != nil {
@@ -582,6 +595,13 @@ func sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notification *bgp.BGPMe
 			fmt.Println("No Communities parsed")
 		}
 	}
+
+	// Generate signature for each peer
+	s.rpkiManager.GenerateSignature(peer, paths, notification)
+
+	// Lets print the peers:
+	fmt.Println("Peer ID: ", peer.ID())
+	fmt.Println("Peer AS: ", peer.AS())
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
 		Paths:             paths,
 		Notification:      notification,
@@ -1376,7 +1396,7 @@ func (s *BgpServer) propagateUpdate(peer *peer, pathList []*table.Path) {
 					paths = s.processOutgoingPaths(peer, paths, nil)
 				}
 				s.logger.Info("Sending Update to ", log.Fields{"peer:": peer.relationship, "paths": paths})
-				sendfsmOutgoingMsg(peer, paths, nil, false)
+				s.sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
 		}
 
@@ -1522,13 +1542,13 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 				}
 			}
 			if needToAdvertise(targetPeer) && len(bestList) > 0 {
-				sendfsmOutgoingMsg(targetPeer, bestList, nil, false)
+				s.sendfsmOutgoingMsg(targetPeer, bestList, nil, false)
 			}
 		} else {
 			if targetPeer.isRouteServerClient() {
 				if targetPeer.isSecondaryRouteEnabled() {
 					if paths := s.sendSecondaryRoutes(targetPeer, newPath, dsts); len(paths) > 0 {
-						sendfsmOutgoingMsg(targetPeer, paths, nil, false)
+						s.sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 					}
 					continue
 				}
@@ -1542,7 +1562,7 @@ func (s *BgpServer) propagateUpdateToNeighbors(rib *table.TableManager, source *
 			}
 			if paths := s.processOutgoingPaths(targetPeer, bestList, oldList); len(paths) > 0 {
 				s.logger.Info("Sending Update in line 1536 to ", log.Fields{"peer:": targetPeer.ID(), "paths": paths})
-				sendfsmOutgoingMsg(targetPeer, paths, nil, false)
+				s.sendfsmOutgoingMsg(targetPeer, paths, nil, false)
 			}
 		}
 	}
@@ -1753,7 +1773,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				}
 
 				if len(pathList) > 0 {
-					sendfsmOutgoingMsg(peer, pathList, nil, false)
+					s.sendfsmOutgoingMsg(peer, pathList, nil, false)
 				}
 			} else {
 				// RFC 4724 4.1
@@ -1783,7 +1803,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 						}
 						paths, _ := s.getBestFromLocal(p, p.configuredRFlist())
 						if len(paths) > 0 {
-							sendfsmOutgoingMsg(p, paths, nil, false)
+							s.sendfsmOutgoingMsg(p, paths, nil, false)
 						}
 					}
 					s.logger.Info("sync finished",
@@ -1831,13 +1851,13 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			return
 		}
 		if paths := s.handleRouteRefresh(peer, e); len(paths) > 0 {
-			sendfsmOutgoingMsg(peer, paths, nil, false)
+			s.sendfsmOutgoingMsg(peer, paths, nil, false)
 			return
 		}
 	case fsmMsgBGPMessage:
 		switch m := e.MsgData.(type) {
 		case *bgp.MessageError:
-			sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
+			s.sendfsmOutgoingMsg(peer, nil, bgp.NewBGPNotificationMessage(m.TypeCode, m.SubTypeCode, m.Data), false)
 			return
 		case *bgp.BGPMessage:
 			s.notifyRecvMessageWatcher(peer, e.timestamp, m)
@@ -1848,7 +1868,9 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
-			if peer.fsm.pConf.Config.BgpsecEnable {
+			// s.rpkiManager.validate(peer, m, e)
+			s.ProcessValidUpdate(peer, e, m)
+			/*if peer.fsm.pConf.Config.BgpsecEnable {
 				// log.Debug("Peer: BGPsecEnable; Parsing update to manager.")
 				//s.rpkiManager.validateBGPsecMessage(e)
 				var z table.RpkiValidationReasonType
@@ -1877,13 +1899,15 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 				e.PathList[0].SetDropped(true)
 				e.PathList[0].SetRejected(true)
 				e.PathList[0].SetRpkiValidation(z)
-				s.ProcessValidUpdate(peer, e, m)*/
-				// --------------------------------------
-			} else {
-				// currently every update gets a transitive signature
-				s.rpkiManager.validate(peer, m, e)
 				s.ProcessValidUpdate(peer, e, m)
-			}
+				// --------------------------------------
+			*/
+			//}
+			//else {
+			// currently every update gets a transitive signature
+			//	s.rpkiManager.validate(peer, m, e)
+			//	s.ProcessValidUpdate(peer, e, m)
+			//}
 			return
 		}
 
@@ -1899,7 +1923,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 func (s *BgpServer) ProcessValidUpdate(peer *peer, e *fsmMsg, m *bgp.BGPMessage) {
 	pathList, eor, notification := peer.handleUpdate(e)
 	if notification != nil {
-		sendfsmOutgoingMsg(peer, nil, notification, true)
+		s.sendfsmOutgoingMsg(peer, nil, notification, true)
 		return
 	}
 	if m.Header.Type == bgp.BGP_MSG_UPDATE {
@@ -1974,7 +1998,7 @@ func (s *BgpServer) ProcessValidUpdate(peer *peer, e *fsmMsg, m *bgp.BGPMessage)
 					}
 					paths, _ := s.getBestFromLocal(p, p.negotiatedRFList())
 					if len(paths) > 0 {
-						sendfsmOutgoingMsg(p, paths, nil, false)
+						s.sendfsmOutgoingMsg(p, paths, nil, false)
 					}
 				}
 				s.logger.Info("sync finished",
@@ -2023,7 +2047,7 @@ func (s *BgpServer) ProcessValidUpdate(peer *peer, e *fsmMsg, m *bgp.BGPMessage)
 				}
 			}
 			if paths, _ := s.getBestFromLocal(peer, families); len(paths) > 0 {
-				sendfsmOutgoingMsg(peer, paths, nil, false)
+				s.sendfsmOutgoingMsg(peer, paths, nil, false)
 			}
 		}
 	}
@@ -2532,6 +2556,7 @@ func (s *BgpServer) StartBgp(ctx context.Context, r *api.StartBgpRequest) error 
 		table.SelectionOptions = c.RouteSelectionOptions.Config
 		table.UseMultiplePaths = c.UseMultiplePaths.Config
 
+		// TODO: Uncommnt when SRx-Server is implemented
 		s.rpkiManager.SetSKI(s.bgpConfig.Global.Config.SKI)
 		s.rpkiManager.SetAS(s.bgpConfig.Global.Config.As)
 		s.rpkiManager.SetSRxServer(s.bgpConfig.Global.Config.SRxServer)
@@ -2741,7 +2766,7 @@ func (s *BgpServer) softResetOut(addr string, family bgp.RouteFamily, deferral b
 					return l
 				}()
 			}
-			sendfsmOutgoingMsg(peer, pathList, nil, false)
+			s.sendfsmOutgoingMsg(peer, pathList, nil, false)
 		}
 	}
 	return nil
@@ -3751,7 +3776,7 @@ func (s *BgpServer) sendNotification(op, addr string, subcode uint8, data []byte
 	if err == nil {
 		m := bgp.NewBGPNotificationMessage(bgp.BGP_ERROR_CEASE, subcode, data)
 		for _, peer := range peers {
-			sendfsmOutgoingMsg(peer, nil, m, false)
+			s.sendfsmOutgoingMsg(peer, nil, m, false)
 		}
 	}
 	return err
