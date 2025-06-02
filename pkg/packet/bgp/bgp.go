@@ -14811,6 +14811,8 @@ func GetPathAttribute(data []byte) (PathAttributeInterface, error) {
 		return &PathAttributeLs{}, nil
 	case BGP_ATTR_TYPE_PREFIX_SID:
 		return &PathAttributePrefixSID{}, nil
+	case BGP_ATTR_TYPE_SIGNATURE:
+		return &PathAttributeSignature{}, nil
 	}
 	return &PathAttributeUnknown{}, nil
 }
@@ -15535,5 +15537,94 @@ func FlatUpdate(f1, f2 map[string]string) error {
 		return errors.New("keys conflict")
 	} else {
 		return nil
+	}
+}
+
+// Added code to support transitive signatures in BGP updates.
+type SigtraBlock struct {
+	Signature  [72]byte
+	Timestamp  uint32
+	SKI        [20]byte
+	CreatingAS uint32
+	NextASN    uint32
+}
+
+type PathAttributeSignature struct {
+	PathAttribute
+	Block SigtraBlock
+}
+
+func (p *PathAttributeSignature) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
+	if len(data) < 72+4+20+4+4 {
+		return fmt.Errorf("not enough data for SigtraBlock")
+	}
+	copy(p.Block.Signature[:], data[:72])
+	p.Block.Timestamp = binary.BigEndian.Uint32(data[72:76])
+	copy(p.Block.SKI[:], data[76:96])
+	p.Block.CreatingAS = binary.BigEndian.Uint32(data[96:100])
+	p.Block.NextASN = binary.BigEndian.Uint32(data[100:104])
+	return nil
+}
+
+func (p *PathAttributeSignature) Serialize(options ...*MarshallingOption) ([]byte, error) {
+	buf := make([]byte, 104)
+	copy(buf[:72], p.Block.Signature[:])
+	binary.BigEndian.PutUint32(buf[72:76], p.Block.Timestamp)
+	copy(buf[76:96], p.Block.SKI[:])
+	binary.BigEndian.PutUint32(buf[96:100], p.Block.CreatingAS)
+	binary.BigEndian.PutUint32(buf[100:104], p.Block.NextASN)
+	return p.PathAttribute.Serialize(buf, options...)
+}
+
+func (p *PathAttributeSignature) Len(options ...*MarshallingOption) int {
+	return p.PathAttribute.Len(options...)
+}
+
+func (p *PathAttributeSignature) GetFlags() BGPAttrFlag {
+	return PathAttrFlags[BGP_ATTR_TYPE_SIGNATURE]
+}
+
+func (p *PathAttributeSignature) GetType() BGPAttrType {
+	return BGP_ATTR_TYPE_SIGNATURE
+}
+
+func (p *PathAttributeSignature) String() string {
+	return fmt.Sprintf("Signature: %x", p.Block.Signature)
+}
+
+func (p *PathAttributeSignature) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type      BGPAttrType `json:"type"`
+		Signature string      `json:"signature"`
+	}{
+		Type:      p.GetType(),
+		Signature: fmt.Sprintf("%x", p.Block.Signature),
+	})
+}
+
+func (p *PathAttributeSignature) Flat() map[string]string {
+	return map[string]string{
+		"signature": fmt.Sprintf("%x", p.Block.Signature),
+	}
+}
+
+func NewPathAttributeSignature(signature []byte, timestamp uint32, ski []byte, creatingAS, nextASN uint32) *PathAttributeSignature {
+	var sig [72]byte
+	var skiArr [20]byte
+	copy(sig[:], signature)
+	copy(skiArr[:], ski)
+	return &PathAttributeSignature{
+		PathAttribute: PathAttribute{
+			Flags:  PathAttrFlags[BGP_ATTR_TYPE_SIGNATURE],
+			Type:   BGP_ATTR_TYPE_SIGNATURE,
+			Length: 104, // fixed length of SigtraBlock
+		},
+		Block: SigtraBlock{
+			Signature:  sig,
+			Timestamp:  timestamp,
+			SKI:        skiArr,
+			CreatingAS: creatingAS,
+			NextASN:    nextASN,
+		},
 	}
 }
