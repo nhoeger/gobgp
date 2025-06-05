@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 )
 
 /*
@@ -28,9 +30,10 @@ type GoSRxProxy struct {
 	onVerify         func(string)
 	onSync           func()
 	UpdateIdentifier int
+	RPKIManager      *RPKIManager
 }
 
-func NewGoSRxProxy(asn int, ip, ski string, onVerify func(string), onSync func()) (*GoSRxProxy, error) {
+func NewGoSRxProxy(asn int, ip, ski string, onVerify func(string), onSync func(), rpkimanager *RPKIManager) (*GoSRxProxy, error) {
 	p := &GoSRxProxy{
 		ASN:              asn,
 		IP:               ip,
@@ -40,6 +43,7 @@ func NewGoSRxProxy(asn int, ip, ski string, onVerify func(string), onSync func()
 		onVerify:         onVerify,
 		onSync:           onSync,
 		UpdateIdentifier: 1,
+		RPKIManager:      rpkimanager,
 	}
 
 	if !p.connectToSRxServer(ip) {
@@ -143,7 +147,7 @@ func (proxy *GoSRxProxy) processInput(st string, wg *sync.WaitGroup) {
 		fmt.Println("[i] Received PDU_SRXPROXY_SIGN_NOTIFICATION")
 	case PDU_SRXPROXY_SIGTRA_SIGNATURE_RESPONSE:
 		fmt.Println("[i] Received SigTra Signature Response")
-		fmt.Println("[i] SigTra Signature Response: ", st)
+		proxy.RPKIManager.HandleGeneratedSignature(to_process)
 	case PDU_SRXPROXY_SIGTRA_VALIDATION_RESPONSE:
 		fmt.Println("[i] Received SigTra Validation Response")
 		fmt.Println("[i] SigTra Validation Response: ", st)
@@ -192,7 +196,7 @@ func buildSigtraBlock() SigBlock {
 	return sigBlock
 }
 
-func (proxy *GoSRxProxy) sendSigtraValidationRequest() {
+func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, update *SRxTuple) {
 	// SRx Basic Header
 	hdr := SRxHeader{
 		PDU:        fmt.Sprintf("%02x", PDU_SRXPROXY_SIGTRA_VALIDATION_REQUEST),
@@ -202,18 +206,7 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest() {
 		Length:     "00000000",
 	}
 
-	vr := SigTraValReq{
-		signatureID: "12345678",
-		blockCount:  "02",
-		blocks:      "",
-	}
-
-	for i := 0; i < 2; i++ {
-		// Create a new block
-		block := buildSigtraBlock()
-		block_string := structToString(block)
-		vr.blocks += block_string
-	}
+	vr := SigTraValReq{}
 
 	fmt.Println("Blocks: ", vr.blocks)
 	hdr_length := len(hdr.PDU) + len(hdr.Reserved16) + len(hdr.Reserved8) + len(hdr.Reserved32) + len(hdr.Length)
@@ -230,70 +223,58 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest() {
 	copy(bytes[len(header):], body)
 	fmt.Println("Bytes: ", bytes)
 	fmt.Println("Length: ", len(bytes))
-	_, err := proxy.con.Write(bytes)
-	if err != nil {
-		fmt.Println("[i] Sending SRXPROXY_SIGTRA__VALIDATION_REQUEST Failed: ", err)
-	}
+	//_, err := proxy.con.Write(bytes)
+	//if err != nil {
+	//	fmt.Println("[i] Sending SRXPROXY_SIGTRA__VALIDATION_REQUEST Failed: ", err)
+	//}
 }
 
 // This function sends a SigTraGenRequest to the SRx-Server
 // It is used to request the generation of a signature for a given prefix
 // and a given number of peers
-func (proxy *GoSRxProxy) sendSigtraGenerationRequest(prefix net.IP, prefixLength int, asPath []uint32, timestamp uint32, otcField string, peer *peer) {
+func (proxy *GoSRxProxy) sendSigtraGenerationRequest(s SRxTuple) {
 	// SRx Basic Header
 	hdr := proxy.generateHeader(PDU_SRXPROXY_SIGTRA_GENERATION_REQUEST)
-
+	fmt.Println("Received the follwoing AS Patjh List: ", s.ASPathList)
 	// Packet to request signature generation
 	sr := SigTraGenRequest{}
 	sr.requestingAS = fmt.Sprintf("%08x", int64(proxy.ASN))
-
-	// Generate a random signature ID
-	sr.SignatureID = fmt.Sprintf("%08x", int64(proxy.UpdateIdentifier))
-	proxy.UpdateIdentifier += 1
+	sr.SignatureID = fmt.Sprintf("%08x", int64(s.local_id))
+	sr.ASPathLength = fmt.Sprintf("%02x", len(s.ASPathList))
+	fmt.Println("AS Path Length: ", sr.ASPathLength)
 
 	// Prefix
-	tmp := hex.EncodeToString(prefix)
+	tmp := hex.EncodeToString(s.prefixAddr)
 	sr.Prefix = tmp[len(tmp)-8:]
-	sr.PrefixLength = strconv.FormatInt(int64(prefixLength), 16)
+	sr.PrefixLength = strconv.FormatInt(int64(s.prefixLen), 16)
 
-	// AS Path
-	sr.ASPath = ""
-	for _, asn := range asPath {
+	for _, asn := range s.ASPathList {
 		// Convert ASN to hex and pad it to 8 characters
 		hexValue := fmt.Sprintf("%08x", asn)
-		fmt.Println("AS Path ASN:", asn, "Hex Value:", hexValue)
 		sr.ASPath += hexValue
 	}
-	length := len(sr.ASPath)
 
 	// fill in the rest of the AS path with 0
+	length := len(s.ASPathList)
 	for i := length; i < 16; i++ {
 		sr.ASPath += "00000000"
 	}
 
-	// timestamp
 	sr.Timestamp = fmt.Sprintf("%08x", int64(time.Now().Unix()))
-
-	// OTCField
-	sr.OTCField = otcField
-
+	sr.OTCField = s.otc
 	// Peers: Currently always one peer
 	numberOfPeers := 1
 	sr.PeerListLength = fmt.Sprintf("%02x", numberOfPeers)
-	sr.PeerList = fmt.Sprintf("%08x", int64(peer.AS()))
+	sr.PeerList = fmt.Sprintf("%08x", int64(s.peer.AS()))
 	// fill in the rest of the AS path with 0
 	for i := numberOfPeers; i < 16; i++ {
 		sr.PeerList += "00000000"
 	}
 
-	// Extract originating AS out of AS path
-	sr.OriginAS = "00000000"
-	if len(asPath) > 0 {
-		// Convert ASN to hex and pad it to 8 characters
-		sr.OriginAS = fmt.Sprintf("%08x", asPath[len(asPath)-1])
-	}
-	sr.blockCount = "00"
+	sr.OriginAS = fmt.Sprintf("%08x", s.ASPathList[length-1])
 
+	// TODO: Implement block count
+	sr.blockCount = "00"
 	hdr_length := len(hdr.PDU) + len(hdr.Reserved16) + len(hdr.Reserved8) + len(hdr.Reserved32) + len(hdr.Length)
 	sr_length := len(sr.SignatureID) + len(sr.PrefixLength) + len(sr.Prefix) +
 		len(sr.ASPathLength) + len(sr.ASPath) + len(sr.OriginAS) + len(sr.Timestamp) +
@@ -302,17 +283,15 @@ func (proxy *GoSRxProxy) sendSigtraGenerationRequest(prefix net.IP, prefixLength
 	total_length := hdr_length + sr_length
 	total_length = total_length / 2
 	hdr.Length = fmt.Sprintf("%08x", total_length)
-
 	hexString_hdr := structToString(hdr)
 	hexString_sr := structToString(sr)
-
 	bytes_sr, _ := hex.DecodeString(hexString_sr)
 	bytes_hdr, _ := hex.DecodeString(hexString_hdr)
-
 	bytes := make([]byte, len(bytes_hdr)+len(bytes_sr))
+	fmt.Println("Hex String: ", hexString_sr, " length; ", len(hexString_sr))
+	fmt.Println("Hex String: ", hexString_hdr, " length; ", len(hexString_hdr))
 	copy(bytes, bytes_hdr)
 	copy(bytes[len(bytes_hdr):], bytes_sr)
-
 	_, err := proxy.con.Write(bytes)
 	if err != nil {
 		fmt.Println("[i] Sending SRXPROXY_SIGTRA_GENERATION_REQUEST Failed: ", err)
@@ -322,7 +301,7 @@ func (proxy *GoSRxProxy) sendSigtraGenerationRequest(prefix net.IP, prefixLength
 // Send a test verification request to the srx-server
 // Create a Validation message for an incoming BGP UPDATE message
 // inputs: BGP peer, the message and message data
-func validate(proxy *GoSRxProxy) {
+func (proxy *GoSRxProxy) validate(update *SRxTuple) {
 	id := 1
 
 	// Create new message for each path

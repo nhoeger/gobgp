@@ -15551,33 +15551,48 @@ type SigtraBlock struct {
 
 type PathAttributeSignature struct {
 	PathAttribute
-	Block SigtraBlock
+	Blocks []SigtraBlock
 }
 
 func (p *PathAttributeSignature) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	if len(data) < 72+4+20+4+4 {
-		return fmt.Errorf("not enough data for SigtraBlock")
+	const blockLen = 72 + 4 + 20 + 4 + 4
+	if len(data)%blockLen != 0 {
+		return fmt.Errorf("data length (%d) is not a multiple of SigtraBlock size (%d)", len(data), blockLen)
 	}
-	copy(p.Block.Signature[:], data[:72])
-	p.Block.Timestamp = binary.BigEndian.Uint32(data[72:76])
-	copy(p.Block.SKI[:], data[76:96])
-	p.Block.CreatingAS = binary.BigEndian.Uint32(data[96:100])
-	p.Block.NextASN = binary.BigEndian.Uint32(data[100:104])
+	numBlocks := len(data) / blockLen
+	p.Blocks = make([]SigtraBlock, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		offset := i * blockLen
+		copy(p.Blocks[i].Signature[:], data[offset:offset+72])
+		p.Blocks[i].Timestamp = binary.BigEndian.Uint32(data[offset+72 : offset+76])
+		copy(p.Blocks[i].SKI[:], data[offset+76:offset+96])
+		p.Blocks[i].CreatingAS = binary.BigEndian.Uint32(data[offset+96 : offset+100])
+		p.Blocks[i].NextASN = binary.BigEndian.Uint32(data[offset+100 : offset+104])
+	}
 	return nil
 }
 
 func (p *PathAttributeSignature) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	buf := make([]byte, 104)
-	copy(buf[:72], p.Block.Signature[:])
-	binary.BigEndian.PutUint32(buf[72:76], p.Block.Timestamp)
-	copy(buf[76:96], p.Block.SKI[:])
-	binary.BigEndian.PutUint32(buf[96:100], p.Block.CreatingAS)
-	binary.BigEndian.PutUint32(buf[100:104], p.Block.NextASN)
+	const blockLen = 72 + 4 + 20 + 4 + 4
+	buf := make([]byte, blockLen*len(p.Blocks))
+	for i, block := range p.Blocks {
+		offset := i * blockLen
+		copy(buf[offset:offset+72], block.Signature[:])
+		binary.BigEndian.PutUint32(buf[offset+72:offset+76], block.Timestamp)
+		copy(buf[offset+76:offset+96], block.SKI[:])
+		binary.BigEndian.PutUint32(buf[offset+96:offset+100], block.CreatingAS)
+		binary.BigEndian.PutUint32(buf[offset+100:offset+104], block.NextASN)
+	}
 	return p.PathAttribute.Serialize(buf, options...)
 }
 
 func (p *PathAttributeSignature) Len(options ...*MarshallingOption) int {
-	return p.PathAttribute.Len(options...)
+	const blockLen = 72 + 4 + 20 + 4 + 4
+	return p.PathAttribute.Len(options...) + blockLen*len(p.Blocks)
+}
+
+func (p *PathAttributeSignature) GetSigTraBlocks() []SigtraBlock {
+	return p.Blocks
 }
 
 func (p *PathAttributeSignature) GetFlags() BGPAttrFlag {
@@ -15589,42 +15604,55 @@ func (p *PathAttributeSignature) GetType() BGPAttrType {
 }
 
 func (p *PathAttributeSignature) String() string {
-	return fmt.Sprintf("Signature: %x", p.Block.Signature)
+	var blocks []string
+	for i, b := range p.Blocks {
+		blocks = append(blocks, fmt.Sprintf("Block %d: Signature: %x", i, b.Signature))
+	}
+	return strings.Join(blocks, ", ")
 }
 
 func (p *PathAttributeSignature) MarshalJSON() ([]byte, error) {
+	type sigtraBlockJSON struct {
+		Signature  string `json:"signature"`
+		Timestamp  uint32 `json:"timestamp"`
+		SKI        string `json:"ski"`
+		CreatingAS uint32 `json:"creating_as"`
+		NextASN    uint32 `json:"next_asn"`
+	}
+	blocks := make([]sigtraBlockJSON, len(p.Blocks))
+	for i, b := range p.Blocks {
+		blocks[i] = sigtraBlockJSON{
+			Signature:  fmt.Sprintf("%x", b.Signature[:]),
+			Timestamp:  b.Timestamp,
+			SKI:        fmt.Sprintf("%x", b.SKI[:]),
+			CreatingAS: b.CreatingAS,
+			NextASN:    b.NextASN,
+		}
+	}
 	return json.Marshal(struct {
-		Type      BGPAttrType `json:"type"`
-		Signature string      `json:"signature"`
+		Type   BGPAttrType       `json:"type"`
+		Blocks []sigtraBlockJSON `json:"blocks"`
 	}{
-		Type:      p.GetType(),
-		Signature: fmt.Sprintf("%x", p.Block.Signature),
+		Type:   p.GetType(),
+		Blocks: blocks,
 	})
 }
 
 func (p *PathAttributeSignature) Flat() map[string]string {
-	return map[string]string{
-		"signature": fmt.Sprintf("%x", p.Block.Signature),
+	flat := make(map[string]string)
+	for i, block := range p.Blocks {
+		flat[fmt.Sprintf("block_%d_signature", i)] = fmt.Sprintf("%x", block.Signature)
 	}
+	return flat
 }
 
-func NewPathAttributeSignature(signature []byte, timestamp uint32, ski []byte, creatingAS, nextASN uint32) *PathAttributeSignature {
-	var sig [72]byte
-	var skiArr [20]byte
-	copy(sig[:], signature)
-	copy(skiArr[:], ski)
+func NewPathAttributeSignature(blocks []SigtraBlock) *PathAttributeSignature {
 	return &PathAttributeSignature{
 		PathAttribute: PathAttribute{
-			Flags:  PathAttrFlags[BGP_ATTR_TYPE_SIGNATURE],
+			Flags:  PathAttrFlags[BGP_ATTR_TYPE_SIGNATURE] | BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
 			Type:   BGP_ATTR_TYPE_SIGNATURE,
-			Length: 104, // fixed length of SigtraBlock
+			Length: uint16(len(blocks) * 104),
 		},
-		Block: SigtraBlock{
-			Signature:  sig,
-			Timestamp:  timestamp,
-			SKI:        skiArr,
-			CreatingAS: creatingAS,
-			NextASN:    nextASN,
-		},
+		Blocks: blocks,
 	}
 }

@@ -597,39 +597,10 @@ func (s *BgpServer) sendfsmOutgoingMsg(peer *peer, paths []*table.Path, notifica
 	}
 
 	// Generate signature for each peer
-	s.rpkiManager.GenerateSignature(peer, paths, notification)
+	s.rpkiManager.GenerateSignature(peer, paths, notification, stayIdle)
+}
 
-	// TODO: Add
-	/* Thoughts on SignatureBlockStructure
-					typedef struct {
-						uint8_t     signature[72];
-						uint32_t    timestamp;
-						uint8_t     ski[20];
-						uint32_t    creatingAS;
-						uint32_t    nextASN;
-					} __attribute__((packed)) SRXPROXY_SIGTRA_BLOCK;
-
-
-					sigtra := PathAttributeSigtra{
-	    PathAttribute: PathAttribute{
-	        Flags: PathAttrFlags[BGP_ATTR_TYPE_SIGTRA],
-	        Type:  BGP_ATTR_TYPE_SIGTRA,
-	    },
-	    Block: SRXProxySigtraBlock{
-	        // Fill fields as needed
-	    },
-	}
-	*/
-
-	/*
-		sig := []byte{  your signature bytes  }
-		sigAttr := NewPathAttributeSignature(sig)
-		update := NewBGPUpdateMessage(nil, []PathAttributeInterface{sigAttr}, nil)
-	*/
-
-	// Lets print the peers:
-	fmt.Println("Peer ID: ", peer.ID())
-	fmt.Println("Peer AS: ", peer.AS())
+func (s *BgpServer) sendfsmOutgoingMsgWithSig(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
 	peer.fsm.outgoingCh.In() <- &fsmOutgoingMsg{
 		Paths:             paths,
 		Notification:      notification,
@@ -1896,7 +1867,7 @@ func (s *BgpServer) handleFSMMessage(peer *peer, e *fsmMsg) {
 			if notEstablished || beforeUptime {
 				return
 			}
-			// s.rpkiManager.validate(peer, m, e)
+			s.rpkiManager.validate(peer, m, e)
 			s.ProcessValidUpdate(peer, e, m)
 			/*if peer.fsm.pConf.Config.BgpsecEnable {
 				// log.Debug("Peer: BGPsecEnable; Parsing update to manager.")

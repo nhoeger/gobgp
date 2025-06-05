@@ -982,6 +982,17 @@ func (path *Path) SetLargeCommunities(cs []*bgp.LargeCommunity, doReplace bool) 
 	}
 }
 
+func (path *Path) SetSignatureAttribute(attr *bgp.PathAttributeSignature) {
+	if attr == nil {
+		return
+	}
+	if path.getPathAttr(bgp.BGP_ATTR_TYPE_SIGNATURE) != nil {
+		path.setPathAttr(attr)
+	} else {
+		path.setPathAttr(attr)
+	}
+}
+
 func (path *Path) GetMed() (uint32, error) {
 	attr := path.getPathAttr(bgp.BGP_ATTR_TYPE_MULTI_EXIT_DISC)
 	if attr == nil {

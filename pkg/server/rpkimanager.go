@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strconv"
@@ -23,19 +24,25 @@ type RPKIManager struct {
 }
 
 type SRxTuple struct {
-	local_id   int
-	srx_id     string
-	peer       *peer
-	fsmMsg     *fsmMsg
-	bgpMsg     *bgp.BGPMessage
-	origin     bool
-	aspa       bool
-	std_val    bool
-	sig_val    bool
-	prefixAddr net.IP
-	prefixLen  int
-	ASPathList []int
-	signatures []string
+	local_id     int
+	srx_id       string
+	peer         *peer
+	path         *table.Path
+	notification *bgp.BGPMessage
+	stayIdle     bool
+	fsmMsg       *fsmMsg
+	bgpMsg       *bgp.BGPMessage
+	origin       bool
+	aspa         bool
+	std_val      bool
+	sig_val      bool
+	otc          string
+	prefixAddr   net.IP
+	prefixLen    int
+	ASPathList   []int
+	OriginAS     int
+	signatures   []string
+	timestamp    uint32
 }
 
 // NewRPKIManager Create new RPKI manager instance
@@ -45,12 +52,13 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 	// ASN := int(s.bgpConfig.Global.Config.As)
 	ASN := 65000
 	rm := &RPKIManager{
-		AS:        ASN,
-		Server:    s,
-		StartTime: time.Now(),
-		Ready:     new(bool),
-		Proxy:     nil,
-		SKI:       "",
+		AS:            ASN,
+		Server:        s,
+		StartTime:     time.Now(),
+		Ready:         new(bool),
+		Proxy:         nil,
+		SKI:           "",
+		CurrentUpdate: 1,
 	}
 	*rm.Ready = true
 	return rm, nil
@@ -60,7 +68,7 @@ func NewRPKIManager(s *BgpServer) (*RPKIManager, error) {
 // Proxy can establish a connection with the SRx-Server and sends a hello message
 // Thread mandatory to keep proxy alive during runtime
 func (rm *RPKIManager) SetSRxServer(ip string) error {
-	rm.Proxy, _ = NewGoSRxProxy(rm.AS, ip, rm.SKI, nil, nil)
+	rm.Proxy, _ = NewGoSRxProxy(rm.AS, ip, rm.SKI, nil, nil, rm)
 	return nil
 }
 
@@ -83,25 +91,8 @@ func (rm *RPKIManager) SetAS(as uint32) error {
 	return nil
 }
 
-// Validate incoming BGP update message
-func (rm *RPKIManager) ValidateUpdate(signatures string) error {
-	new_pending_update := SRxTuple{
-		local_id: rm.CurrentUpdate,
-		std_val:  false,
-		sig_val:  false,
-	}
-	rm.CurrentUpdate += 1
-
-	fmt.Println("Validating BGP update message")
-	if len(signatures) != 0 {
-		rm.ValidateSignature(signatures)
-	}
-	fmt.Println(new_pending_update.local_id)
-	return nil
-}
-
 // Generate signatures
-func (rm *RPKIManager) GenerateSignature(peer *peer, paths []*table.Path, notification *bgp.BGPMessage) {
+func (rm *RPKIManager) GenerateSignature(peer *peer, paths []*table.Path, notification *bgp.BGPMessage, stayIdle bool) {
 	// Prepare everything for signature generation for each path
 	// Iterate over all paths
 	for _, path := range paths {
@@ -121,28 +112,144 @@ func (rm *RPKIManager) GenerateSignature(peer *peer, paths []*table.Path, notifi
 		}
 
 		prefix_length := prefixLen
-		prefix_version := 4
 		prefix_address := prefixAddr
-		fmt.Printf("Prefix length: %d\n", prefix_length)
-		fmt.Printf("Prefix version: %d\n", prefix_version)
-		fmt.Printf("Prefix address: %s\n", prefix_address)
 
 		// Extract AS path
 		asList := path.GetAsList()
-		fmt.Printf("AS path: %s\n", asList)
+		// Convert AS path to a list of integers
+		var array []int
+		for _, asn := range asList {
+			array = append(array, int(asn))
+		}
 
-		// Extract the next hop
-		nextHop := peer.AS()
-		fmt.Printf("Next hop: %s\n", nextHop)
-
+		fmt.Printf("AS Path: %v\n", asList)
 		// Generate timestamp
 		timestamp := uint32(time.Now().Unix())
 
 		// TODO: Add OTC functionality
 		otcField := fmt.Sprintf("%08x", int64(65000))
 
-		rm.Proxy.sendSigtraGenerationRequest(prefix_address, prefix_length, asList, timestamp, otcField, peer)
+		// Generate identifier
+		identifier := fmt.Sprintf("%08x", int64(rm.CurrentUpdate))
+
+		// Store the SRxTuple
+		update := SRxTuple{
+			local_id:     rm.CurrentUpdate,
+			srx_id:       identifier,
+			peer:         peer,
+			path:         path,
+			notification: notification,
+			stayIdle:     stayIdle,
+			timestamp:    timestamp,
+			otc:          otcField,
+			ASPathList:   array,
+			prefixAddr:   prefix_address,
+			prefixLen:    prefix_length,
+		}
+		rm.PendingUpdate = append(rm.PendingUpdate, &update)
+		rm.CurrentUpdate = (rm.CurrentUpdate % 10000) + 1
+
+		// Parse request to proxy
+		rm.Proxy.sendSigtraGenerationRequest(update)
 	}
+}
+
+// Callback function to handle generated signatures
+// This function is called by the GoSRxProxy when a signature is recevied from the SRx-Server
+// It extracts the signature identifier from the input string and finds the corresponding update in PendingUpdate
+// It creates a new SigtraBlock and appends it to the PathAttributeSignature of the update's path
+func (rm *RPKIManager) HandleGeneratedSignature(input string) {
+	fmt.Println("[i] Handling generated signature:", input)
+
+	// First find update
+	signatureIdentifier := input[24:32]
+	// Extract signature identifier from hex value
+	signatureIdentifierInt, _ := strconv.ParseUint(signatureIdentifier, 16, 32)
+	sigID := int(signatureIdentifierInt) // Multiply by 2 to account for hex representation
+	fmt.Printf("Signature Identifier: %d\n", sigID)
+
+	for _, update := range rm.PendingUpdate {
+		if update.local_id == sigID {
+			fmt.Printf("Found matching update for signature identifier: %d\n", sigID)
+
+			// Calculate passed time
+			t := time.Unix(int64(update.timestamp), 0)
+
+			passedTime := time.Since(t).Seconds()
+			fmt.Printf("Passed time since update: %.2f seconds\n", passedTime)
+
+			signatureLength := input[32:40]
+
+			// Extract acutal length form hex value
+			lengthValue, _ := strconv.ParseUint(signatureLength, 16, 32)
+			lengthValue *= 2
+
+			signature := input[40:lengthValue]
+
+			// print all fields
+			fmt.Printf("Signature Identifier: %d\n", sigID)
+			fmt.Printf("Signature Length: %s\n", signatureLength)
+			fmt.Printf("Signature Length Value: %d\n", lengthValue)
+			fmt.Printf("Signature: %s\n", signature)
+
+			// Create a new SigtraBlock
+			sigtraBlock := bgp.SigtraBlock{
+				Signature:  [72]byte{}, // Placeholder, should be filled with actual signature bytes
+				Timestamp:  update.timestamp,
+				SKI:        [20]byte{}, // Placeholder, should be filled with actual SKI bytes
+				CreatingAS: uint32(rm.AS),
+				NextASN:    uint32(update.peer.AS()),
+			}
+
+			// Fill in the Signature field
+			signatureBytes := []byte(signature)
+			sigtraBlock.Signature = [72]byte{}
+			copy(sigtraBlock.Signature[:], signatureBytes)
+
+			// Fill in the SKI field
+			skiBytes, err := hex.DecodeString(rm.SKI)
+			if err != nil {
+				fmt.Println("Error decoding SKI:", err)
+			}
+			if len(skiBytes) != 20 {
+				fmt.Println("SKI must be 20 bytes long")
+				return
+			}
+			copy(sigtraBlock.SKI[:], skiBytes)
+
+			working_path := update.path
+			attrs := working_path.GetPathAttrs()
+			var sigAttr *bgp.PathAttributeSignature
+
+			// Search for existing PathAttributeSignature
+			for _, attr := range attrs {
+				if attr.GetType() == bgp.BGP_ATTR_TYPE_SIGNATURE {
+					// Type assertion to *PathAttributeSignature
+					if s, ok := attr.(*bgp.PathAttributeSignature); ok {
+						sigAttr = s
+						break
+					}
+				}
+			}
+
+			if sigAttr != nil {
+				// Attribute exists, append block
+				sigAttr.Blocks = append(sigAttr.Blocks, sigtraBlock)
+			} else {
+				// No Signature attribute present, create new one
+				sigAttr = bgp.NewPathAttributeSignature([]bgp.SigtraBlock{sigtraBlock})
+			}
+
+			// Setze die Attribute wieder zurück ins Path-Objekt (je nach API)
+			working_path.SetSignatureAttribute(sigAttr)
+
+			// Convert update path from *table.Path to []*table.Path
+			paths := []*table.Path{update.path}
+			rm.Server.sendfsmOutgoingMsgWithSig(update.peer, paths, update.notification, update.stayIdle)
+			return
+		}
+	}
+	fmt.Println("[!] No matching update found for signature identifier:", sigID)
 }
 
 // Validate signatures
@@ -151,7 +258,7 @@ func (rm *RPKIManager) ValidateSignature(signatures string) {
 }
 
 func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
-	fmt.Println("Validating BGP update message!!!!!!!!!!!!!!!!")
+	fmt.Println("[i] Validating BGP update message")
 	// Iterate over all paths in the update message
 	for _, path := range e.PathList {
 		// Create a new SRxTuple for each path
@@ -205,6 +312,8 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 		prefix.length = prefixLen
 		prefix.version = 4
 		prefix.address = prefixAddr
+		update.prefixAddr = prefixAddr
+		update.prefixLen = prefixLen
 
 		var array []int
 		asList := path.GetAsList()
@@ -217,14 +326,22 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 		rm.PendingUpdate = append(rm.PendingUpdate, &update)
 		rm.CurrentUpdate = (rm.CurrentUpdate % 10000) + 1
 
-		// Print the SRxTuple for debugging
-		fmt.Printf("SRxTuple: %+v\n", update)
-		fmt.Printf("Prefix: %+v\n", prefix)
-		fmt.Printf("ASPathList: %+v\n", ASlist)
-		fmt.Printf("Prefix Length: %d\n", prefixLen)
+		// prepare signature generation request if there are any signatures present
+		attrs := path.GetPathAttrs()
+		for _, attr := range attrs {
+			if attr.GetType() == bgp.BGP_ATTR_TYPE_SIGNATURE {
+				if sigAttr, ok := attr.(*bgp.PathAttributeSignature); ok {
+					// Print block count and details
+					numberOfBlocks := len(sigAttr.Blocks)
+					fmt.Printf("Found %d signature blocks in PathAttributeSignature\n", numberOfBlocks)
+					if numberOfBlocks > 0 {
+						// Parse data to proxy to send a validation request
+						rm.Proxy.sendSigtraValidationRequest(sigAttr.Blocks, &update)
+					}
+				}
+			}
+		}
 
-		fmt.Printf("Request Result: %+v\n", reqRes)
-		fmt.Printf("SRx Result: %+v\n", srxRes)
-		fmt.Println("Pending updates:", len(rm.PendingUpdate))
+		rm.Proxy.validate(&update)
 	}
 }
