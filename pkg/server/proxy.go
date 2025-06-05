@@ -181,24 +181,22 @@ func (proxy *GoSRxProxy) handleHelloResponse(st string) {
  * Update validation and signature gerneration
  */
 
-func buildSigtraBlock() SigBlock {
+func buildSigtraBlock(id int, block bgp.SigtraBlock) SigBlock {
 	sigBlock := SigBlock{
-		prefixLength: "0a",
-		prefix:       "00000000",
-		asPathLength: "00",
-		asPath:       "00000000",
-		pkiIDType:    "00",
-		pkiID:        "00000000",
-		timestamp:    "00000000",
-		signature:    "00000000",
-		OTCFlags:     "00",
-		OTCField:     "00000000",
+		id:         fmt.Sprintf("%02x", id),
+		timestamp:  fmt.Sprintf("%08x", block.Timestamp),
+		ski:        fmt.Sprintf("%08x", block.SKI),
+		creatingAS: fmt.Sprintf("%08x", block.CreatingAS),
+		nextAS:     fmt.Sprintf("%08x", block.NextASN),
 	}
+	sigBlock.signature = hex.EncodeToString(block.Signature[0:block.SignatureLength])
+	fmt.Println("[i] Building Sigtra Block: ", sigBlock.id, "\n  [-> ]Signature: ", sigBlock.signature, "\n  [-> ]Timestamp: ", sigBlock.timestamp, "\n  [-> ]SKI: ", sigBlock.ski, "\n  [-> ]Creating AS: ", sigBlock.creatingAS, "\n  [-> ]Next AS: ", sigBlock.nextAS)
 
 	return sigBlock
 }
 
 func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, update *SRxTuple) {
+	fmt.Println("[i] Sending SigTra Validation Request to SRx server")
 	// SRx Basic Header
 	hdr := SRxHeader{
 		PDU:        fmt.Sprintf("%02x", PDU_SRXPROXY_SIGTRA_VALIDATION_REQUEST),
@@ -209,8 +207,34 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 	}
 
 	vr := SigTraValReq{}
+	current_block := 0
+	vr.signatureID = fmt.Sprintf("%08x", int64(update.local_id))
+	vr.blockCount = fmt.Sprintf("%02x", len(blocks))
+	vr.prefixLen = fmt.Sprintf("%02x", update.prefixLen)
+	vr.prefix = hex.EncodeToString(update.prefixAddr)
+	vr.asPathLen = fmt.Sprintf("%02x", len(update.ASPathList))
+	for _, asn := range update.ASPathList {
+		// Convert ASN to hex and pad it to 8 characters
+		hexValue := fmt.Sprintf("%08x", asn)
+		vr.asPath += hexValue
+	}
 
-	fmt.Println("Blocks: ", vr.blocks)
+	// fill in the rest of the AS path with 0
+	length := len(update.ASPathList)
+	for i := length; i < 16; i++ {
+		vr.asPath += "00000000"
+	}
+
+	vr.otcField = update.otc
+	vr.blocks = ""
+	vr.blockCount = fmt.Sprintf("%02x", len(blocks))
+
+	for _, block := range blocks {
+		sigBlock := buildSigtraBlock(current_block, block)
+		vr.blocks += sigBlock.id + sigBlock.signature + sigBlock.timestamp + sigBlock.ski + sigBlock.creatingAS + sigBlock.nextAS
+		current_block++
+	}
+
 	hdr_length := len(hdr.PDU) + len(hdr.Reserved16) + len(hdr.Reserved8) + len(hdr.Reserved32) + len(hdr.Length)
 	vr_length := len(vr.blockCount) + len(vr.blocks)
 	total_length := hdr_length + vr_length
@@ -225,10 +249,10 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 	copy(bytes[len(header):], body)
 	fmt.Println("Bytes: ", bytes)
 	fmt.Println("Length: ", len(bytes))
-	//_, err := proxy.con.Write(bytes)
-	//if err != nil {
-	//	fmt.Println("[i] Sending SRXPROXY_SIGTRA__VALIDATION_REQUEST Failed: ", err)
-	//}
+	_, err := proxy.con.Write(bytes)
+	if err != nil {
+		fmt.Println("[i] Sending SRXPROXY_SIGTRA__VALIDATION_REQUEST Failed: ", err)
+	}
 }
 
 // This function sends a SigTraGenRequest to the SRx-Server

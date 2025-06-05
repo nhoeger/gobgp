@@ -167,13 +167,34 @@ type SigTraGenRequest struct {
 	blockCount     string
 }
 
-type SigTraValReq struct {
+/*type SigTraValReq struct {
 	signatureID string
 	blockCount  string
 	blocks      string // SigBlocks
+}*/
+
+type SigTraValReq struct {
+	signatureID string
+	blockCount  string
+	prefixLen   string
+	prefix      string
+	asPathLen   string
+	asPath      string
+	otcField    string
+	blocks      string
 }
 
 type SigBlock struct {
+	id              string
+	signatureLength string
+	signature       string
+	timestamp       string
+	ski             string
+	creatingAS      string
+	nextAS          string
+}
+
+/*type SigBlock struct {
 	prefixLength string
 	prefix       string
 	asPathLength string
@@ -184,7 +205,7 @@ type SigBlock struct {
 	signature    string
 	OTCFlags     string
 	OTCField     string
-}
+}*/
 
 type SkiMessage struct {
 	PDU             string

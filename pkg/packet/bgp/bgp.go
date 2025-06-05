@@ -15542,11 +15542,12 @@ func FlatUpdate(f1, f2 map[string]string) error {
 
 // Added code to support transitive signatures in BGP updates.
 type SigtraBlock struct {
-	Signature  [72]byte
-	Timestamp  uint32
-	SKI        [20]byte
-	CreatingAS uint32
-	NextASN    uint32
+	SignatureLength uint32
+	Signature       [72]byte
+	Timestamp       uint32
+	SKI             [20]byte
+	CreatingAS      uint32
+	NextASN         uint32
 }
 
 type PathAttributeSignature struct {
@@ -15555,13 +15556,16 @@ type PathAttributeSignature struct {
 }
 
 func (p *PathAttributeSignature) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
-	const blockLen = 72 + 4 + 20 + 4 + 4
+	const blockLen = 4 + 72 + 4 + 20 + 4 + 4
+	fmt.Println("[ -> PathAttributeSignature.DecodeFromBytes]")
 
 	numBlocks := len(data) / blockLen
 	p.Blocks = make([]SigtraBlock, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		offset := i * blockLen
 		offset += 3
+		p.Blocks[i].SignatureLength = binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
 		copy(p.Blocks[i].Signature[:], data[offset:offset+72])
 		p.Blocks[i].Timestamp = binary.BigEndian.Uint32(data[offset+72 : offset+76])
 		copy(p.Blocks[i].SKI[:], data[offset+76:offset+96])
@@ -15572,10 +15576,13 @@ func (p *PathAttributeSignature) DecodeFromBytes(data []byte, options ...*Marsha
 }
 
 func (p *PathAttributeSignature) Serialize(options ...*MarshallingOption) ([]byte, error) {
-	const blockLen = 72 + 4 + 20 + 4 + 4
+	const blockLen = 4 + 72 + 4 + 20 + 4 + 4
+	fmt.Println("[ -> PathAttributeSignature.Serialize]")
 	buf := make([]byte, blockLen*len(p.Blocks))
 	for i, block := range p.Blocks {
 		offset := i * blockLen
+		binary.BigEndian.PutUint32(buf[offset:offset+4], block.SignatureLength)
+		offset += 4
 		copy(buf[offset:offset+72], block.Signature[:])
 		binary.BigEndian.PutUint32(buf[offset+72:offset+76], block.Timestamp)
 		copy(buf[offset+76:offset+96], block.SKI[:])
@@ -15586,7 +15593,7 @@ func (p *PathAttributeSignature) Serialize(options ...*MarshallingOption) ([]byt
 }
 
 func (p *PathAttributeSignature) Len(options ...*MarshallingOption) int {
-	const blockLen = 72 + 4 + 20 + 4 + 4 // total: 104 bytes per block
+	const blockLen = 4 + 72 + 4 + 20 + 4 + 4 // total: 108 bytes per block
 	return p.PathAttribute.Len(options...) + blockLen*len(p.Blocks)
 }
 
@@ -15605,18 +15612,19 @@ func (p *PathAttributeSignature) GetType() BGPAttrType {
 func (p *PathAttributeSignature) String() string {
 	var blocks []string
 	for i, b := range p.Blocks {
-		blocks = append(blocks, fmt.Sprintf("Block %d: Signature: %x", i, b.Signature))
+		blocks = append(blocks, fmt.Sprintf("Block %d: SignatureLength: %d, Signature: %x", i, b.SignatureLength, b.Signature))
 	}
 	return strings.Join(blocks, ", ")
 }
 
 func (p *PathAttributeSignature) MarshalJSON() ([]byte, error) {
 	type sigtraBlockJSON struct {
-		Signature  string `json:"signature"`
-		Timestamp  uint32 `json:"timestamp"`
-		SKI        string `json:"ski"`
-		CreatingAS uint32 `json:"creating_as"`
-		NextASN    uint32 `json:"next_asn"`
+		SignatureLength uint32 `json:"signature_length"`
+		Signature       string `json:"signature"`
+		Timestamp       uint32 `json:"timestamp"`
+		SKI             string `json:"ski"`
+		CreatingAS      uint32 `json:"creating_as"`
+		NextASN         uint32 `json:"next_asn"`
 	}
 	blocks := make([]sigtraBlockJSON, len(p.Blocks))
 	for i, b := range p.Blocks {
@@ -15650,7 +15658,7 @@ func NewPathAttributeSignature(blocks []SigtraBlock) *PathAttributeSignature {
 		PathAttribute: PathAttribute{
 			Flags:  PathAttrFlags[BGP_ATTR_TYPE_SIGNATURE] | BGP_ATTR_FLAG_OPTIONAL | BGP_ATTR_FLAG_TRANSITIVE,
 			Type:   BGP_ATTR_TYPE_SIGNATURE,
-			Length: uint16(len(blocks) * 104),
+			Length: uint16(len(blocks) * 108),
 		},
 		Blocks: blocks,
 	}

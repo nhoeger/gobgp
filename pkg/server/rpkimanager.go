@@ -194,9 +194,9 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 
 			// Create a new SigtraBlock
 			sigtraBlock := bgp.SigtraBlock{
-				Signature:  [72]byte{}, // Placeholder, should be filled with actual signature bytes
+				Signature:  [72]byte{},
 				Timestamp:  update.timestamp,
-				SKI:        [20]byte{}, // Placeholder, should be filled with actual SKI bytes
+				SKI:        [20]byte{},
 				CreatingAS: uint32(rm.AS),
 				NextASN:    uint32(update.peer.AS()),
 			}
@@ -210,7 +210,7 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 				fmt.Println("Error decoding signature:", err)
 				return
 			}
-
+			sigtraBlock.SignatureLength = uint32(len(signatureBytes))
 			copy(sigtraBlock.Signature[:], signatureBytes)
 
 			// Fill in the SKI field
@@ -246,7 +246,6 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 				// No Signature attribute present, create new one
 				sigAttr = bgp.NewPathAttributeSignature([]bgp.SigtraBlock{sigtraBlock})
 			}
-
 			// Print all fields of the signature attribute
 			fmt.Printf("Signature Attribute:\n")
 			fmt.Printf("  Signature Identifier: %d\n", sigID)
@@ -286,7 +285,7 @@ func (rm *RPKIManager) ValidateSignature(signatures string) {
 func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 	fmt.Println("[i] Validating BGP update message")
 	// Iterate over all paths in the update message
-	/*for _, path := range e.PathList {
+	for _, path := range e.PathList {
 		// Create a new SRxTuple for each path
 		update := SRxTuple{
 			local_id: rm.CurrentUpdate,
@@ -368,6 +367,6 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 			}
 		}
 
-		rm.Proxy.validate(&update)
-	}*/
+		// rm.Proxy.validate(&update)
+	}
 }
