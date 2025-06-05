@@ -202,8 +202,15 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 			}
 
 			// Fill in the Signature field
-			signatureBytes := []byte(signature)
+			/*signatureBytes := []byte(signature)
 			sigtraBlock.Signature = [72]byte{}
+			copy(sigtraBlock.Signature[:], signatureBytes)*/
+			signatureBytes, err := hex.DecodeString(signature)
+			if err != nil {
+				fmt.Println("Error decoding signature:", err)
+				return
+			}
+
 			copy(sigtraBlock.Signature[:], signatureBytes)
 
 			// Fill in the SKI field
@@ -240,6 +247,25 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 				sigAttr = bgp.NewPathAttributeSignature([]bgp.SigtraBlock{sigtraBlock})
 			}
 
+			// Print all fields of the signature attribute
+			fmt.Printf("Signature Attribute:\n")
+			fmt.Printf("  Signature Identifier: %d\n", sigID)
+			fmt.Printf("  Signature Length: %s\n", signatureLength)
+			fmt.Printf("  Signature Length Value: %d\n", lengthValue)
+			fmt.Printf("  Number of Blocks: %d\n", len(sigAttr.Blocks))
+			for i := range sigAttr.Blocks {
+				fmt.Printf("  Block %d:\n", i+1)
+				// Convert signature bytes to hex for printing
+				sigHex := hex.EncodeToString(sigAttr.Blocks[i].Signature[:])
+				fmt.Printf("    Signature Length: %d\n", len(sigAttr.Blocks[i].Signature))
+				fmt.Printf("    Signature (hex): %s\n", sigHex)
+				fmt.Printf("    Signature: %s\n", sigAttr.Blocks[i].Signature)
+				fmt.Printf("    Timestamp: %d\n", sigAttr.Blocks[i].Timestamp)
+				fmt.Printf("    SKI: %x\n", sigAttr.Blocks[i].SKI)
+				fmt.Printf("    Creating AS: %d\n", sigAttr.Blocks[i].CreatingAS)
+				fmt.Printf("    Next ASN: %d\n", sigAttr.Blocks[i].NextASN)
+			}
+
 			// Setze die Attribute wieder zurück ins Path-Objekt (je nach API)
 			working_path.SetSignatureAttribute(sigAttr)
 
@@ -260,7 +286,7 @@ func (rm *RPKIManager) ValidateSignature(signatures string) {
 func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 	fmt.Println("[i] Validating BGP update message")
 	// Iterate over all paths in the update message
-	for _, path := range e.PathList {
+	/*for _, path := range e.PathList {
 		// Create a new SRxTuple for each path
 		update := SRxTuple{
 			local_id: rm.CurrentUpdate,
@@ -343,5 +369,5 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 		}
 
 		rm.Proxy.validate(&update)
-	}
+	}*/
 }

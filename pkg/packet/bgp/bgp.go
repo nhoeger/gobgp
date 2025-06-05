@@ -15556,13 +15556,12 @@ type PathAttributeSignature struct {
 
 func (p *PathAttributeSignature) DecodeFromBytes(data []byte, options ...*MarshallingOption) error {
 	const blockLen = 72 + 4 + 20 + 4 + 4
-	if len(data)%blockLen != 0 {
-		return fmt.Errorf("data length (%d) is not a multiple of SigtraBlock size (%d)", len(data), blockLen)
-	}
+
 	numBlocks := len(data) / blockLen
 	p.Blocks = make([]SigtraBlock, numBlocks)
 	for i := 0; i < numBlocks; i++ {
 		offset := i * blockLen
+		offset += 3
 		copy(p.Blocks[i].Signature[:], data[offset:offset+72])
 		p.Blocks[i].Timestamp = binary.BigEndian.Uint32(data[offset+72 : offset+76])
 		copy(p.Blocks[i].SKI[:], data[offset+76:offset+96])
@@ -15587,7 +15586,7 @@ func (p *PathAttributeSignature) Serialize(options ...*MarshallingOption) ([]byt
 }
 
 func (p *PathAttributeSignature) Len(options ...*MarshallingOption) int {
-	const blockLen = 72 + 4 + 20 + 4 + 4
+	const blockLen = 72 + 4 + 20 + 4 + 4 // total: 104 bytes per block
 	return p.PathAttribute.Len(options...) + blockLen*len(p.Blocks)
 }
 

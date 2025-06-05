@@ -54,6 +54,7 @@ func NewGoSRxProxy(asn int, ip, ski string, onVerify func(string), onSync func()
 }
 
 func (p *GoSRxProxy) connectToSRxServer(ip string) bool {
+	fmt.Println("[i] Connecting to SRx server at", ip)
 	server := ip + ":17900"
 	for {
 		conn, err := net.Dial("tcp", server)
@@ -73,15 +74,16 @@ func (p *GoSRxProxy) connectToSRxServer(ip string) bool {
 func (p *GoSRxProxy) sendHello() bool {
 	fmt.Println("[i] Sending Hello message to SRx server...")
 	hello := HelloMessage{
-		PDU:              fmt.Sprintf("%02x", PDU_SRXPROXY_HELLO),
-		Version:          "0003",
-		reserved:         "00",
-		zero:             "00000000",
-		length:           "00000000",
-		proxy_identifier: "00000001",
-		ASN:              fmt.Sprintf("%08x", int64(p.ASN)),
-		SKI:              p.SKI,
+		PDU:      fmt.Sprintf("%02x", PDU_SRXPROXY_HELLO),
+		Version:  "0003",
+		reserved: "00",
+		zero:     "00000000",
+		length:   "00000000",
+		ASN:      fmt.Sprintf("%08x", int64(p.ASN)),
+		SKI:      p.SKI,
 	}
+	// Generate a unique identifier for the proxy
+	hello.proxy_identifier = fmt.Sprintf("%08x", time.Now().UnixNano())
 
 	length := len(hello.PDU+hello.Version+hello.reserved+hello.zero+hello.length+hello.proxy_identifier+hello.ASN+hello.SKI) / 2
 	hello.length = fmt.Sprintf("%08x", length)
