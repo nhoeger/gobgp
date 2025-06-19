@@ -277,11 +277,6 @@ func (rm *RPKIManager) HandleGeneratedSignature(input string) {
 	fmt.Println("[!] No matching update found for signature identifier:", sigID)
 }
 
-// Validate signatures
-func (rm *RPKIManager) ValidateSignature(signatures string) {
-	fmt.Println("Validating signatures")
-}
-
 func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 	fmt.Println("[i] Validating BGP update message")
 	// Iterate over all paths in the update message
@@ -295,6 +290,7 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 			bgpMsg:   m,
 			origin:   !rm.Server.bgpConfig.Global.Config.ROA,
 			aspa:     !rm.Server.bgpConfig.Global.Config.ASPA,
+			OriginAS: int(peer.AS()),
 		}
 		var flag SRxVerifyFlag
 		var reqRes SRxDefaultResult
@@ -342,12 +338,20 @@ func (rm *RPKIManager) validate(peer *peer, m *bgp.BGPMessage, e *fsmMsg) {
 
 		var array []int
 		asList := path.GetAsList()
+		fmt.Println("ASlist we have from path:", asList)
 		for i, asn := range asList {
 			ASlist.length = i
 			ASlist.ASes = append(array, int(asn))
 			ASlist.ASType = ASSequence
 			ASlist.Relation = unknown
 		}
+
+		asIntList := make([]int, len(asList))
+		for i, asn := range asList {
+			asIntList[i] = int(asn)
+		}
+
+		update.ASPathList = asIntList
 		rm.PendingUpdate = append(rm.PendingUpdate, &update)
 		rm.CurrentUpdate = (rm.CurrentUpdate % 10000) + 1
 

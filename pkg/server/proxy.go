@@ -180,18 +180,29 @@ func (proxy *GoSRxProxy) handleHelloResponse(st string) {
 /*
  * Update validation and signature gerneration
  */
-
 func buildSigtraBlock(id int, block bgp.SigtraBlock) SigBlock {
-	sigBlock := SigBlock{
-		id:         fmt.Sprintf("%02x", id),
-		timestamp:  fmt.Sprintf("%08x", block.Timestamp),
-		ski:        fmt.Sprintf("%08x", block.SKI),
-		creatingAS: fmt.Sprintf("%08x", block.CreatingAS),
-		nextAS:     fmt.Sprintf("%08x", block.NextASN),
-	}
-	sigBlock.signature = hex.EncodeToString(block.Signature[0:block.SignatureLength])
-	fmt.Println("[i] Building Sigtra Block: ", sigBlock.id, "\n  [-> ]Signature: ", sigBlock.signature, "\n  [-> ]Timestamp: ", sigBlock.timestamp, "\n  [-> ]SKI: ", sigBlock.ski, "\n  [-> ]Creating AS: ", sigBlock.creatingAS, "\n  [-> ]Next AS: ", sigBlock.nextAS)
+	// Signature auffüllen
+	sigBytes := block.Signature[:block.SignatureLength]
+	var sigFilled [72]byte
+	copy(sigFilled[:], sigBytes)
 
+	// SKI auffüllen (falls nötig, meist schon [20]byte)
+	var skiFilled [20]byte
+	copy(skiFilled[:], block.SKI[:])
+
+	fmt.Println("SigLen:", block.SignatureLength)
+
+	sigBlock := SigBlock{
+		id:              fmt.Sprintf("%02x", id),
+		signatureLength: fmt.Sprintf("%08x", block.SignatureLength),
+		signature:       hex.EncodeToString(sigFilled[:]), // immer 72 Bytes als Hex
+		timestamp:       fmt.Sprintf("%08x", block.Timestamp),
+		ski:             hex.EncodeToString(skiFilled[:]), // immer 20 Bytes als Hex
+		creatingAS:      fmt.Sprintf("%08x", block.CreatingAS),
+		nextAS:          fmt.Sprintf("%08x", block.NextASN),
+	}
+
+	fmt.Println("[i] structToString(sigBlock): ", structToString(sigBlock))
 	return sigBlock
 }
 
@@ -208,10 +219,19 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 
 	vr := SigTraValReq{}
 	current_block := 0
+
+	// print the prefix for debugging
+	tmp := hex.EncodeToString(update.prefixAddr)
+	tmpPrefix := tmp[len(tmp)-8:]
+
 	vr.signatureID = fmt.Sprintf("%08x", int64(update.local_id))
 	vr.blockCount = fmt.Sprintf("%02x", len(blocks))
 	vr.prefixLen = fmt.Sprintf("%02x", update.prefixLen)
-	vr.prefix = hex.EncodeToString(update.prefixAddr)
+	vr.prefix = tmpPrefix
+	// print as path data to debug
+	fmt.Println("[i] Origin AS: ", update.OriginAS)
+	fmt.Println("[i] AS Path List: ", update.ASPathList)
+	fmt.Println("[i] AS Path Length: ", len(update.ASPathList))
 	vr.asPathLen = fmt.Sprintf("%02x", len(update.ASPathList))
 	for _, asn := range update.ASPathList {
 		// Convert ASN to hex and pad it to 8 characters
@@ -225,13 +245,13 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 		vr.asPath += "00000000"
 	}
 
-	vr.otcField = update.otc
+	vr.otcField = fmt.Sprintf("%08x", update.otc)
 	vr.blocks = ""
 	vr.blockCount = fmt.Sprintf("%02x", len(blocks))
 
 	for _, block := range blocks {
-		sigBlock := buildSigtraBlock(current_block, block)
-		vr.blocks += sigBlock.id + sigBlock.signature + sigBlock.timestamp + sigBlock.ski + sigBlock.creatingAS + sigBlock.nextAS
+		sigBlock := buildSigtraBlock(current_block+1, block)
+		vr.blocks += sigBlock.id + sigBlock.signatureLength + sigBlock.signature + sigBlock.timestamp + sigBlock.ski + sigBlock.creatingAS + sigBlock.nextAS
 		current_block++
 	}
 
@@ -241,6 +261,7 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 	total_length = total_length / 2
 	hdr.Length = fmt.Sprintf("%08x", total_length)
 
+	fmt.Println("[i] structToString(vr): ", structToString(vr))
 	header, _ := hex.DecodeString(structToString(hdr))
 	body, _ := hex.DecodeString(structToString(vr))
 
