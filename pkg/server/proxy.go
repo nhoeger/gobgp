@@ -201,8 +201,16 @@ func buildSigtraBlock(id int, block bgp.SigtraBlock) SigBlock {
 		creatingAS:      fmt.Sprintf("%08x", block.CreatingAS),
 		nextAS:          fmt.Sprintf("%08x", block.NextASN),
 	}
-
-	fmt.Println("[i] structToString(sigBlock): ", structToString(sigBlock))
+	// pirnt block human readable
+	//fmt.Println("[i] Sigtra Block ID:", sigBlock.id)
+	//fmt.Println("[i] Signature Length:", sigBlock.signatureLength)
+	//fmt.Println("[i] Signature:", sigBlock.signature)
+	//fmt.Println("[i] Timestamp:", sigBlock.timestamp)
+	//fmt.Println("[i] SKI:", sigBlock.ski)
+	//fmt.Println("[i] Creating AS:", sigBlock.creatingAS)
+	//fmt.Println("[i] Next AS:", sigBlock.nextAS)
+	// print the struct as a string for debugging
+	//fmt.Println("[i] structToString(sigBlock): ", structToString(sigBlock))
 	return sigBlock
 }
 
@@ -228,10 +236,7 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 	vr.blockCount = fmt.Sprintf("%02x", len(blocks))
 	vr.prefixLen = fmt.Sprintf("%02x", update.prefixLen)
 	vr.prefix = tmpPrefix
-	// print as path data to debug
-	fmt.Println("[i] Origin AS: ", update.OriginAS)
-	fmt.Println("[i] AS Path List: ", update.ASPathList)
-	fmt.Println("[i] AS Path Length: ", len(update.ASPathList))
+
 	vr.asPathLen = fmt.Sprintf("%02x", len(update.ASPathList))
 	for _, asn := range update.ASPathList {
 		// Convert ASN to hex and pad it to 8 characters
@@ -256,7 +261,7 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 	}
 
 	hdr_length := len(hdr.PDU) + len(hdr.Reserved16) + len(hdr.Reserved8) + len(hdr.Reserved32) + len(hdr.Length)
-	vr_length := len(vr.blockCount) + len(vr.blocks)
+	vr_length := len(vr.signatureID) + len(vr.blockCount) + len(vr.prefixLen) + len(vr.prefix) + len(vr.asPathLen) + len(vr.asPath) + len(vr.otcField) + len(vr.blocks)
 	total_length := hdr_length + vr_length
 	total_length = total_length / 2
 	hdr.Length = fmt.Sprintf("%08x", total_length)
@@ -267,9 +272,10 @@ func (proxy *GoSRxProxy) sendSigtraValidationRequest(blocks []bgp.SigtraBlock, u
 
 	bytes := make([]byte, len(header)+len(body))
 	copy(bytes, header)
+	// dump bytes
+
 	copy(bytes[len(header):], body)
-	fmt.Println("Bytes: ", bytes)
-	fmt.Println("Length: ", len(bytes))
+	fmt.Println("[i] Bytes to send: ", hex.EncodeToString(bytes))
 	_, err := proxy.con.Write(bytes)
 	if err != nil {
 		fmt.Println("[i] Sending SRXPROXY_SIGTRA__VALIDATION_REQUEST Failed: ", err)
